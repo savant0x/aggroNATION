@@ -1,0 +1,18 @@
+name: Scheduled content fetch
+
+on:
+  schedule:
+    # Hourly. GitHub-hosted runners can delay scheduled runs by 5-15 min —
+    # acceptable for content aggregation; tighten later if needed.
+    - cron: "0 * * * *"
+  workflow_dispatch: {} # manual trigger from the Actions tab
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger fetch webhook
+        run: |
+          curl -sS -f --max-time 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SITE_URL }}/api/cron/fetch"

@@ -1,0 +1,90 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: var(--font-sans), "Inter", system-ui, sans-serif;
+  --font-mono: var(--font-mono), "Fira Code", monospace;
+
+  /*
+   * aggroNATION "dark aggro neon" tokens (FID-006).
+   * Near-black canvas, single electric accent family, glow reserved for
+   * interactive states.
+   */
+  --color-base: #050505;
+  --color-surface: #0b0b0f;
+  --color-raised: #121218;
+  --color-edge: #1d1d26;
+  --color-accent: #7c3aed;
+  --color-accent-bright: #22d3ee;
+  --color-text-primary: #f4f4f6;
+  --color-text-muted: #8b8b98;
+}
+
+:root {
+  --grid-line: rgba(255, 255, 255, 0.035);
+  --accent-glow: rgba(124, 58, 237, 0.45);
+  --accent-bright-glow: rgba(34, 211, 238, 0.35);
+}
+
+html {
+  background-color: var(--color-base);
+}
+
+body {
+  color: var(--color-text-primary);
+}
+
+/*
+ * Subtle 48px grid texture for hero backgrounds. Decorative only —
+ * hidden from assistive tech via aria-hidden at usage sites.
+ */
+.grid-texture {
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 30%, transparent 75%);
+}
+
+/*
+ * Glow accents — interactive states ONLY (FID-006 design law:
+ * glow-everywhere reads cheap; restraint is the premium signal).
+ */
+.glow-accent {
+  box-shadow:
+    0 0 24px var(--accent-glow),
+    0 0 64px var(--accent-glow);
+}
+
+.glow-text {
+  text-shadow:
+    0 0 12px var(--accent-glow),
+    0 0 36px var(--accent-bright-glow);
+}
+
+.gradient-text {
+  background: linear-gradient(120deg, var(--color-accent) 0%, var(--color-accent-bright) 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.gradient-line {
+  background: linear-gradient(90deg, transparent, var(--color-accent), var(--color-accent-bright), transparent);
+}
+
+/* Card hover: single restrained lift + edge glow. */
+.card-interactive {
+  transition:
+    transform 200ms ease-out,
+    box-shadow 200ms ease-out,
+    border-color 200ms ease-out;
+}
+
+.card-interactive:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in oklab, var(--color-accent) 55%, transparent);
+  box-shadow: 0 0 24px var(--accent-glow);
+}
