@@ -49,3 +49,4 @@ next-env.d.ts
 # internal agent tooling
 .agents/
 .savant/
+.env*
