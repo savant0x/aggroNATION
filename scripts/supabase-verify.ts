@@ -168,16 +168,17 @@ async function main(): Promise<void> {
   const byId = await getContentById(latest[0].id);
   check("getContentById round-trip", byId?.id === latest[0].id && byId?.title === latest[0].title);
 
-  // Pagination scoped to OUR source (real rss data shares the type): source A
-  // owns 13 of the 25 items (even indexes) -> 10 + 3 pages, disjoint.
-  const p1 = await getLatestContentPage({ sourceId: srcA.id, pageSize: 10 });
-  check("page 1 has 10 items + nextCursor", p1.items.length === 10 && p1.nextCursor !== null);
-  const p2 = await getLatestContentPage({ sourceId: srcA.id, pageSize: 10, cursor: p1.nextCursor ?? undefined });
+  // Offset pagination scoped to OUR source (real rss data shares the type):
+  // source A owns 13 of the 25 items (even indexes) -> 10 + 3 across pages.
+  const p1 = await getLatestContentPage({ sourceId: srcA.id, pageSize: 10, page: 1 });
+  check("page 1 has 10 items", p1.items.length === 10);
+  const p2 = await getLatestContentPage({ sourceId: srcA.id, pageSize: 10, page: 2 });
   const p1Ids = new Set(p1.items.map((i) => i.id));
-  check("page 2 disjoint from page 1", p2.items.length === 3 && p2.items.every((i) => !p1Ids.has(i.id)));
-  check("page 2 is the last page (no nextCursor)", p2.nextCursor === null);
-  const back1 = await getLatestContentPage({ sourceId: srcA.id, pageSize: 10, cursor: p2.prevCursor ?? undefined, direction: "prev" });
-  check("prev from page 2 returns page 1", back1.items.length === 10 && back1.items.every((i) => p1Ids.has(i.id)));
+  check("page 2 has the remaining 3, disjoint from page 1", p2.items.length === 3 && p2.items.every((i) => !p1Ids.has(i.id)));
+  const p3 = await getLatestContentPage({ sourceId: srcA.id, pageSize: 10, page: 3 });
+  check("page 3 is empty (past the end)", p3.items.length === 0);
+  const newest = await getLatestContent({ sourceType: "rss", limit: 1 });
+  check("page 1 starts at the newest item", p1.items[0].id === newest[0].id);
 
   // Diversified + merged + rankings.
   const diversified = await getLatestContentDiversified({ sourceType: "rss", limit: 15 });

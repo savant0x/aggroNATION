@@ -10,12 +10,8 @@ export const metadata: Metadata = {
 
 export const revalidate = 60;
 
-export default function OpenSourcePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ cursor?: string; dir?: string }>;
-}) {
+export default function OpenSourcePage() {
   return (
-    <TypeListingPage sourceType="opensource" searchParams={searchParams} />
+    <TypeListingPage segment="opensource" sourceType="opensource" page={1} />
   );
 }

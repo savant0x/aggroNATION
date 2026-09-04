@@ -10,12 +10,8 @@ export const metadata: Metadata = {
 
 export const revalidate = 60;
 
-export default function TrendshiftPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ cursor?: string; dir?: string }>;
-}) {
+export default function TrendshiftPage() {
   return (
-    <TypeListingPage sourceType="trendshift" searchParams={searchParams} />
+    <TypeListingPage segment="trendshift" sourceType="trendshift" page={1} />
   );
 }

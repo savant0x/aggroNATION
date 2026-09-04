@@ -4,11 +4,10 @@
  * and components must go through these functions so query shapes stay pinned
  * to the SQL read-path functions in supabase/migrations.
  *
- * Signatures are identical to the Firestore implementation — pages, services,
- * and scripts compile unchanged. Cursor semantics changed internally: they
- * now encode (publishedAt, id) for keyset pagination instead of a bare
- * Firestore doc id (the DB row id is still the first cursor component, so
- * `/watch` doc-id lookups are unaffected).
+ * Listing pagination is offset-based (FID-2026-0904-012 item 6): page
+ * numbers encode directly into path segments, so no cursor codec exists
+ * here anymore. The DB row id remains the doc id, so /watch lookups are
+ * unaffected.
  */
 
 import "server-only";
@@ -26,22 +25,6 @@ import {
 const CONTENT_TABLE = "content";
 /** Payload sanity cap per upsert call (PostgREST body limits are far higher). */
 const MAX_BATCH_SIZE = 500;
-
-/** Cursor format: `{id}::{publishedAtMs}` — ids never contain `::`. */
-function encodeCursor(publishedAt: Date, id: string): string {
-  return `${id}::${publishedAt.getTime()}`;
-}
-
-function decodeCursor(cursor: string): { id: string; publishedAt: string } {
-  const sep = cursor.lastIndexOf("::");
-  if (sep <= 0) {
-    throw new Error(`Malformed content cursor: ${cursor}`);
-  }
-  return {
-    id: cursor.slice(0, sep),
-    publishedAt: new Date(Number(cursor.slice(sep + 2))).toISOString(),
-  };
-}
 
 interface ContentRow {
   id: string;
@@ -324,15 +307,14 @@ export async function getTopContent({
 
 export interface ContentPage {
   items: ContentItem[];
-  /** Opaque cursor to the previous page's last item (null when none). */
-  nextCursor: string | null;
-  /** Opaque cursor to the next page's first item (null when none). */
-  prevCursor: string | null;
 }
 
 /**
- * Newest-first cursor pagination (FID-015 + FID-009 merged types). Keyset
- * over (published_at desc, id desc) via the content_page SQL function.
+ * Newest-first offset pagination (FID-2026-0904-012 item 6). Page numbers
+ * replace the Firestore-era keyset cursor so listing URLs are path segments
+ * (/{type}/page/N) — stable, shareable, ISR-cacheable. Offset-drift
+ * trade-off (items shifting when inserted mid-browse) is negligible at
+ * 20/page with hourly fetches; Supabase has no read quota.
  */
 export async function getLatestContentPage(options: {
   sourceType?: SourceType;
@@ -341,62 +323,24 @@ export async function getLatestContentPage(options: {
   /** Single-source scope — deterministic pagination over one feed. */
   sourceId?: string;
   pageSize: number;
-  cursor?: string;
-  direction?: "next" | "prev";
+  /** 1-based page number. Values < 1 are floored to 1. */
+  page: number;
 }): Promise<ContentPage> {
-  const {
-    sourceType,
-    sourceTypes,
-    sourceId,
-    pageSize,
-    cursor,
-    direction = "next",
-  } = options;
+  const { sourceType, sourceTypes, sourceId, pageSize, page } = options;
 
   const types = sourceType ? [sourceType] : (sourceTypes ?? []);
 
-  const args: Record<string, unknown> = {
+  const { data, error } = await getServiceClient().rpc("content_page_offset", {
     p_types: types.length > 0 ? types : null,
     p_page_size: pageSize,
+    p_page: Math.max(1, Math.floor(page)),
     p_source_id: sourceId ?? null,
-  };
-  if (cursor) {
-    const decoded = decodeCursor(cursor);
-    if (direction === "prev") {
-      args.p_after_published = decoded.publishedAt;
-      args.p_after_id = decoded.id;
-    } else {
-      args.p_before_published = decoded.publishedAt;
-      args.p_before_id = decoded.id;
-    }
-  }
-
-  const { data, error } = await getServiceClient().rpc("content_page", args);
+  });
   if (error) {
     throw new Error(`getLatestContentPage failed: ${error.message}`);
   }
   const items = (data ?? []).map((r: ContentRow) => mapContentRow(r));
-
-  if (items.length === 0) {
-    return { items: [], nextCursor: null, prevCursor: null };
-  }
-
-  const first = items[0];
-  const last = items[items.length - 1];
-
-  return {
-    items,
-    // "Newer" exists if this page didn't start at the very top of the order.
-    prevCursor:
-      cursor && direction === "next"
-        ? encodeCursor(first.publishedAt, first.id)
-        : null,
-    // "Older" exists if we filled a full page (there may be more).
-    nextCursor:
-      items.length === pageSize
-        ? encodeCursor(last.publishedAt, last.id)
-        : null,
-  };
+  return { items };
 }
 
 /** Latest items across ALL source types (FID-015, search input set). */
@@ -558,7 +502,7 @@ export async function upsertContentBatch(
   return written;
 }
 
-/** Single-row fetch for detail views (article/watch) and cursor resolution. */
+/** Single-row fetch for detail views (article/watch) and comment authz. */
 export async function getContentById(id: string): Promise<ContentItem | null> {
   const { data, error } = await getServiceClient()
     .from(CONTENT_TABLE)

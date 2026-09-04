@@ -1,12 +1,20 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
 import { getContentById } from "@/lib/repositories/content-repo";
 import { buildContentDocId } from "@/lib/schemas/content";
 import { CommentSection } from "@/components/comments/CommentSection";
+import { siteConfig } from "@/config/site";
 
 // Watch pages share the ISR freshness contract with the grids.
 export const revalidate = 300;
+
+// FID-2026-0904-012 item 5: runtime-ISR opt-in for the dynamic route (empty
+// GSP = prerender nothing at build, cache per-path on first request).
+export function generateStaticParams() {
+  return [];
+}
 
 export async function generateMetadata({
   params,
@@ -19,7 +27,30 @@ export async function generateMetadata({
   }
   try {
     const item = await getContentById(buildContentDocId("youtube", videoId));
-    return { title: item?.title ?? "Watch" };
+    if (!item) {
+      return { title: "Video not found" };
+    }
+    // FID-2026-0904-012 item 2: YouTube thumbnail as the social image.
+    const ogUrl = `${siteConfig.url}/watch/${videoId}`;
+    const image = item.thumbnailUrl ?? "/banner.jpg";
+    return {
+      title: item.title,
+      description: item.excerpt,
+      alternates: { canonical: ogUrl },
+      openGraph: {
+        type: "video.other",
+        url: ogUrl,
+        title: item.title,
+        description: item.excerpt,
+        images: [{ url: image }],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: item.title,
+        description: item.excerpt,
+        images: [image],
+      },
+    };
   } catch {
     return { title: "Watch" };
   }
@@ -35,21 +66,23 @@ export default async function WatchPage({ params }: WatchPageProps) {
   // Route param charset guard — mirrors the id charset used by
   // buildContentDocId so the doc lookup can only hit a well-formed id.
   if (!/^[A-Za-z0-9_-]+$/.test(videoId)) {
-    return <WatchNotFound />;
+    // Real 404, not a soft-404 panel (FID-2026-0904-012 item 3).
+    notFound();
   }
 
   const contentId = buildContentDocId("youtube", videoId);
   let item = null;
-  let failed = false;
   try {
     item = await getContentById(contentId);
   } catch (error) {
     console.error("[/watch] content lookup failed:", error);
-    failed = true;
+    // Lookup FAILED — a 500-class condition must not masquerade as 404.
+    return <WatchNotFound />;
   }
 
   if (!item) {
-    return <WatchNotFound failed={failed} />;
+    // Genuinely missing — real 404.
+    notFound();
   }
 
   return (
@@ -95,16 +128,16 @@ export default async function WatchPage({ params }: WatchPageProps) {
   );
 }
 
-function WatchNotFound({ failed = false }: { failed?: boolean }) {
+/** 500-class panel: lookup FAILED (not missing) — honest no-fake contract. */
+function WatchNotFound() {
   return (
     <div className="flex flex-col items-center gap-4 py-24 text-center">
       <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold">
-        {failed ? "Something went wrong" : "Video not found"}
+        Something went wrong
       </h1>
       <p className="max-w-md text-muted">
-        {failed
-          ? "The content lookup failed — check server logs. Nothing is faked in the meantime."
-          : "This video isn't in the aggregation index. It may not have been fetched yet, or the link is malformed."}
+        The content lookup failed — check server logs. Nothing is faked in the
+        meantime.
       </p>
       <Link
         href="/youtube"

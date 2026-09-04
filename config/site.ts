@@ -2,6 +2,7 @@ export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
   name: "aggroNATION",
+  url: "https://aggro-nation.vercel.app",
   description:
     "Intelligent AI content aggregator — YouTube, RSS, Reddit, HuggingFace and GitHub repos, fetched automatically and ranked by engagement.",
   adminPath: "/admin",

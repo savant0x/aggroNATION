@@ -1,10 +1,12 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
 import { getContentById } from "@/lib/repositories/content-repo";
 import { fetchArticle } from "@/lib/fetchers/article";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { GitHubRepoCard } from "@/components/article/GitHubRepoCard";
+import { siteConfig } from "@/config/site";
 import type { SourceType } from "@/lib/schemas/content";
 
 // ISR 300s (FID-2026-0904-011): bounds the per-view origin scrape (FID-019/020
@@ -12,6 +14,14 @@ import type { SourceType } from "@/lib/schemas/content";
 // content renders instantly from the cache regardless. Comments stay live —
 // they load client-side through /api/comments, never server-rendered.
 export const revalidate = 300;
+
+// FID-2026-0904-012 item 5: dynamic routes in Next 16 render dynamically at
+// runtime unless they opt into the runtime-ISR contract. An empty-return GSP
+// means "nothing to prerender at build; cache per-path on first request"
+// (mechanism proven by controlled experiment in the FID, E3).
+export function generateStaticParams() {
+  return [];
+}
 
 /**
  * Text content types the reader serves (FID-022; x removed per
@@ -41,7 +51,34 @@ export async function generateMetadata({
   }
   try {
     const item = await getContentById(itemId);
-    return { title: item?.title ?? "Article" };
+    if (!item) {
+      return { title: "Article not found" };
+    }
+    // FID-2026-0904-012 item 2: full social metadata — og:image priority
+    // github card → feed thumbnail → site banner; excerpt as description;
+    // large card for X/Discord/Slack link previews.
+    const image = item.github?.ogImageUrl ?? item.thumbnailUrl ?? "/banner.jpg";
+    const ogUrl = `${siteConfig.url}/article/${itemId}`;
+    return {
+      title: item.title,
+      description: item.excerpt,
+      alternates: { canonical: ogUrl },
+      openGraph: {
+        type: "article",
+        url: ogUrl,
+        title: item.title,
+        description: item.excerpt,
+        publishedTime: item.publishedAt.toISOString(),
+        authors: item.author ? [item.author] : undefined,
+        images: [{ url: image }],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: item.title,
+        description: item.excerpt,
+        images: [image],
+      },
+    };
   } catch {
     return { title: "Article" };
   }
@@ -58,11 +95,11 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     !READABLE_PREFIXES.some((p) => itemId.startsWith(p)) ||
     itemId.length > 300
   ) {
-    return <ArticleNotFound />;
+    // Real 404, not a soft-404 panel (FID-2026-0904-012 item 3).
+    notFound();
   }
 
   let item = null;
-  let failed = false;
   try {
     const candidate = await getContentById(itemId);
     if (candidate && candidate.sourceType !== "youtube") {
@@ -70,11 +107,14 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     }
   } catch (error) {
     console.error("[/article] content lookup failed:", error);
-    failed = true;
+    // Lookup FAILED — a 500-class condition must not masquerade as 404.
+    // Honest no-fake contract: say so, don't render an empty page.
+    return <ArticleNotFound />;
   }
 
   if (!item) {
-    return <ArticleNotFound failed={failed} />;
+    // Genuinely missing (or a youtube item) — real 404.
+    notFound();
   }
 
   // FID-020 content-first order:
@@ -164,16 +204,16 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   );
 }
 
-function ArticleNotFound({ failed = false }: { failed?: boolean }) {
+/** 500-class panel: lookup FAILED (not missing) — honest no-fake contract. */
+function ArticleNotFound() {
   return (
     <div className="flex flex-col items-center gap-4 py-24 text-center">
       <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold">
-        {failed ? "Something went wrong" : "Article not found"}
+        Something went wrong
       </h1>
       <p className="max-w-md text-muted">
-        {failed
-          ? "The content lookup failed — check server logs. Nothing is faked in the meantime."
-          : "This article isn't in the aggregation index. It may not have been fetched yet, or the link is malformed."}
+        The content lookup failed — check server logs. Nothing is faked in the
+        meantime.
       </p>
       <Link
         href="/"

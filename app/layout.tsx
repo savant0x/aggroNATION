@@ -9,11 +9,28 @@ import { fontSans, fontDisplay } from "@/config/fonts";
 import { Navbar } from "@/components/navbar";
 
 export const metadata: Metadata = {
+  // FID-2026-0904-012 item 2: absolute-URL base + sitewide og/twitter
+  // defaults. Individual pages override via their own metadata exports.
+  metadataBase: new URL(siteConfig.url),
   title: {
     default: siteConfig.name,
     template: `%s - ${siteConfig.name}`,
   },
   description: siteConfig.description,
+  openGraph: {
+    type: "website",
+    siteName: siteConfig.name,
+    url: "/",
+    title: siteConfig.name,
+    description: siteConfig.description,
+    images: [{ url: "/banner.jpg", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteConfig.name,
+    description: siteConfig.description,
+    images: ["/banner.jpg"],
+  },
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },

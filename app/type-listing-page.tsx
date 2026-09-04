@@ -9,9 +9,14 @@ import type { ContentItem, SourceType } from "@/lib/schemas/content";
 
 /**
  * Shared type-scoped listing page (FID-015 follow-up): /youtube, /rss,
- * /reddit, /x all render through this component so layout, pagination, and
- * honesty guarantees stay identical across content types. FID-2026-0904-009
- * extends it to multi-type categories (the combined /github page).
+ * /reddit, /huggingface, /trendshift, /opensource and the merged /github all
+ * render through this component so layout, pagination, and honesty
+ * guarantees stay identical across content types.
+ *
+ * FID-2026-0904-012 item 6: pagination is path-based — the page renders a
+ * numeric `page` prop instead of awaiting searchParams. Query strings can
+ * never be ISR-cached; path segments can. This is what lets every listing
+ * page serve from the ISR cache (the FID's whole point).
  */
 
 export const metadata = {
@@ -53,8 +58,8 @@ const EMPTY_DETAIL: Record<SourceType, string> = {
     "Add an Open Source Projects source (https://www.opensourceprojects.dev/rss) in the admin dashboard — project discoveries fetch immediately.",
 };
 
-/** Merged category header (FID-2026-0904-009) — the GitHub page combines
- *  opensource + trendshift. */
+/** Merged category meta (FID-2026-0904-009) — the GitHub page combines
+ *  opensource + trendshift. Keyed by URL segment. */
 const MERGED_META: Record<string, { label: string; tagline: string }> = {
   github: {
     label: "GitHub",
@@ -63,45 +68,40 @@ const MERGED_META: Record<string, { label: string; tagline: string }> = {
   },
 };
 
-interface TypePageProps {
+export interface TypeListingPageProps {
   /** Single source type, OR sourceTypes for a merged category. */
   sourceType?: SourceType;
   sourceTypes?: SourceType[];
-  searchParams: Promise<{ cursor?: string; dir?: string }>;
+  /** URL segment: "youtube" for /youtube, "github" for the merged page. */
+  segment: string;
+  /** 1-based page number from the path (/{segment}/page/N). */
+  page: number;
 }
 
 export default async function TypeListingPage({
   sourceType,
   sourceTypes,
-  searchParams,
-}: TypePageProps) {
-  const { cursor, dir } = await searchParams;
-  const direction = dir === "prev" ? "prev" : "next";
-
+  segment,
+  page,
+}: TypeListingPageProps) {
   const types = sourceTypes ?? (sourceType ? [sourceType] : []);
   const isMerged = Boolean(sourceTypes && sourceTypes.length > 1);
-  const metaKey = isMerged ? (sourceTypes as string[]).join("+") : sourceType!;
-  const merged = MERGED_META[metaKey];
+  const merged = isMerged ? MERGED_META[segment] : undefined;
   const label = merged?.label ?? TYPE_LABELS[sourceType!];
   const tagline = merged?.tagline ?? TYPE_TAGLINES[sourceType!];
 
   let items: ContentItem[] = [];
-  let nextCursor: string | null = null;
-  let prevCursor: string | null = null;
   let failed = false;
 
   try {
-    const page = await getLatestContentPage({
+    const result = await getLatestContentPage({
       sourceTypes: types,
       pageSize: PAGE_SIZE,
-      cursor,
-      direction,
+      page,
     });
-    items = page.items;
-    nextCursor = page.nextCursor;
-    prevCursor = page.prevCursor;
+    items = result.items;
   } catch (error) {
-    console.error(`[/${metaKey}] Failed to load page:`, error);
+    console.error(`[/${segment}] Failed to load page:`, error);
     failed = true;
   }
 
@@ -109,10 +109,12 @@ export default async function TypeListingPage({
   try {
     total = await countContent({ sourceTypes: types });
   } catch (error) {
-    console.error(`[/${metaKey}] count failed:`, error);
+    console.error(`[/${segment}] count failed:`, error);
   }
 
-  const base = `/${metaKey}`;
+  const totalPages =
+    total !== null && total > 0 ? Math.ceil(total / PAGE_SIZE) : null;
+  const base = `/${segment}`;
 
   return (
     <div className="flex flex-col gap-6 pb-20 pt-8">
@@ -147,9 +149,9 @@ export default async function TypeListingPage({
             aria-label="Pagination"
             className="flex items-center justify-between gap-4"
           >
-            {prevCursor ? (
+            {page > 1 ? (
               <Link
-                href={`${base}?cursor=${encodeURIComponent(prevCursor)}&dir=prev`}
+                href={page === 2 ? base : `${base}/page/${page - 1}`}
                 className="rounded-full border border-[var(--color-edge)] bg-[var(--color-surface)] px-5 py-2 text-sm font-medium transition-colors hover:border-[var(--color-accent)]"
               >
                 ← Newer
@@ -157,14 +159,14 @@ export default async function TypeListingPage({
             ) : (
               <span />
             )}
-            {total !== null && (
+            {totalPages !== null && totalPages > 1 && (
               <span className="text-sm text-muted">
-                {total.toLocaleString("en")} total
+                Page {page} of {totalPages.toLocaleString("en")}
               </span>
             )}
-            {nextCursor ? (
+            {totalPages !== null && page < totalPages ? (
               <Link
-                href={`${base}?cursor=${encodeURIComponent(nextCursor)}&dir=next`}
+                href={`${base}/page/${page + 1}`}
                 className="rounded-full border border-[var(--color-edge)] bg-[var(--color-surface)] px-5 py-2 text-sm font-medium transition-colors hover:border-[var(--color-accent)]"
               >
                 Older →
