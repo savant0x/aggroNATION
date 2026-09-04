@@ -15,6 +15,7 @@ import "server-only";
 
 import type { GithubRepoData } from "@/lib/fetchers/github-repos";
 import { getServiceClient } from "@/lib/supabase/admin";
+import { stripLoneSurrogates } from "@/lib/strings";
 import {
   buildContentDocId,
   contentSchema,
@@ -478,14 +479,18 @@ function buildUpsertRow(item: UpsertContentInput): UpsertRow {
     source_id: item.sourceId,
     source_type: item.sourceType,
     external_id: item.externalId,
-    title: item.title,
-    excerpt: item.excerpt,
+    // Lone-surrogate net (upsertContentBatch jsonb fix): externally sourced
+    // strings can already contain unpaired surrogates; JSON.stringify would
+    // emit them as \uD800-\uDFFF escapes and Postgres jsonb rejects the row.
+    // Sanitize every string that lands in a jsonb column at the boundary.
+    title: stripLoneSurrogates(item.title),
+    excerpt: stripLoneSurrogates(item.excerpt),
     url: item.url,
     thumbnail_url: item.thumbnailUrl,
     source_name: item.sourceName ?? null,
-    author: item.author,
+    author: stripLoneSurrogates(item.author),
     published_at: item.publishedAt.toISOString(),
-    tags: item.tags,
+    tags: item.tags.map((tag) => stripLoneSurrogates(tag)),
     metrics: item.metrics,
     featured: false,
     archived: false,

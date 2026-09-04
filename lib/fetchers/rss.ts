@@ -12,6 +12,8 @@
 import { XMLParser } from "fast-xml-parser";
 import sanitizeHtml from "sanitize-html";
 
+import { stripLoneSurrogates, truncateSafe } from "@/lib/strings";
+
 export interface NormalizedFeedItem {
   externalId: string;
   title: string;
@@ -141,8 +143,8 @@ function stripHtml(html: string): string {
 
 function sliceExcerpt(text: string): string {
   return text.length > EXCERPT_MAX
-    ? `${text.slice(0, EXCERPT_MAX - 1)}…`
-    : text;
+    ? `${truncateSafe(text, EXCERPT_MAX - 1)}…`
+    : stripLoneSurrogates(text);
 }
 
 /** First <img src="…"> in an HTML blob, if any. */

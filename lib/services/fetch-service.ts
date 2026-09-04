@@ -25,6 +25,7 @@ import {
 } from "@/lib/fetchers/github-repos";
 import { fetchImpressions } from "@/lib/fetchers/osp-impressions";
 import { computeRating } from "@/lib/fetchers/rating";
+import { stripLoneSurrogates, truncateSafe } from "@/lib/strings";
 import {
   upsertContentBatch,
   type UpsertContentInput,
@@ -418,7 +419,9 @@ async function fetchTrendshiftSource(
       sourceName: source.name,
       github: gh,
       title: repo.slug,
-      excerpt: (gh?.description ?? `${statLine}${tagsLine}`).slice(0, 280),
+      excerpt: stripLoneSurrogates(
+        truncateSafe(gh?.description ?? `${statLine}${tagsLine}`, 280),
+      ),
       contentHtml: `<p>${body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`,
       url,
       thumbnailUrl: githubOgImageUrl(repo.slug),
@@ -486,7 +489,7 @@ async function fetchHuggingFaceSource(
     sourceId: source.id,
     sourceName: source.name,
     title: paper.title,
-    excerpt: paper.summary.slice(0, 280),
+    excerpt: stripLoneSurrogates(truncateSafe(paper.summary, 280)),
     contentHtml:
       paper.summary.length > paper.title.length + 40
         ? `<p>${paper.summary.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`
@@ -623,7 +626,7 @@ async function fetchSourceContent(source: Source): Promise<SourceFetchOutcome> {
       sourceId: source.id,
       sourceName: source.name,
       title: video.title,
-      excerpt: video.description.slice(0, 280),
+      excerpt: stripLoneSurrogates(truncateSafe(video.description, 280)),
       url: `https://www.youtube.com/watch?v=${video.videoId}`,
       thumbnailUrl: video.thumbnailUrl,
       author: video.channelTitle,
