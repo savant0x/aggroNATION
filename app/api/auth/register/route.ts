@@ -39,6 +39,15 @@ export async function POST(request: NextRequest) {
 
   const displayName = parsed.displayName?.trim() ?? "";
 
+  // Single-operator bootstrap: registering with the ADMIN_EMAIL from env
+  // automatically grants the admin claim (matches the operator's workflow of
+  // "my account is created as admin" — no separate promote step needed).
+  const operatorAdminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const isOperatorAdmin =
+    operatorAdminEmail !== undefined &&
+    operatorAdminEmail !== "" &&
+    parsed.email.trim().toLowerCase() === operatorAdminEmail;
+
   try {
     const { data, error } = await adminAuth().createUser({
       email: parsed.email,
@@ -49,13 +58,22 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       const message = error.message.toLowerCase();
-      if (message.includes("already registered")) {
+      if (
+        message.includes("already registered") ||
+        message.includes("already exists")
+      ) {
         return NextResponse.json(
           {
             error:
               "That email already has an account — try signing in instead.",
           },
           { status: 409 },
+        );
+      }
+      if (message.includes("too many")) {
+        return NextResponse.json(
+          { error: "Too many attempts — wait a minute and try again." },
+          { status: 429 },
         );
       }
       if (message.includes("password")) {
@@ -77,12 +95,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Operator admin bootstrap: claim + mirroring profile row (idempotent).
+    if (isOperatorAdmin) {
+      await adminAuth().updateUserById(data.user.id, {
+        app_metadata: { ...(data.user.app_metadata ?? {}), is_admin: true },
+      });
+    }
+
     // Profile row with the auth user id (mirrors users/{uid}).
     await getServiceClient().from("profiles").upsert(
       {
         id: data.user.id,
         email: parsed.email,
-        is_admin: false,
+        is_admin: isOperatorAdmin,
       },
       { onConflict: "id" },
     );
