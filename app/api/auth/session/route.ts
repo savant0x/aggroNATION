@@ -1,22 +1,24 @@
 /**
- * POST /api/auth/session — exchange a verified ID token for a Firebase
- * session cookie (FID-004).
+ * POST /api/auth/session — establish the SSR cookie session from a verified
+ * Supabase client session (FID-004, migrated per FID-2026-0904-010).
  *
- * Flow: client signs in with the web SDK → ID token posted here → server
- * verifies it against Firebase Auth → creates a 7-day session cookie
- * (httpOnly, secure in production, sameSite=lax) → also ensures the
- * /users/{uid} profile document exists.
+ * Flow: client signs in with supabase-js (email/password or provider) → posts
+ * the session tokens here → server sets the @supabase/ssr httpOnly cookie
+ * pair via setSession (refreshes are silent through the middleware) → also
+ * ensures the profiles row exists.
  */
 
 import { NextResponse, type NextRequest } from "next/server";
+import { cookies } from "next/headers";
 
-import { adminAuth, adminDb } from "@/lib/firebase/admin";
-import { SESSION_COOKIE, SESSION_EXPIRY_MS } from "@/lib/auth/session";
+import { createSsrSupabase } from "@/lib/supabase/ssr";
+import { getServiceClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 interface SessionRequestBody {
-  idToken?: unknown;
+  accessToken?: unknown;
+  refreshToken?: unknown;
 }
 
 export async function POST(request: NextRequest) {
@@ -27,60 +29,61 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const idToken = typeof body.idToken === "string" ? body.idToken : null;
-  if (!idToken) {
-    return NextResponse.json({ error: "idToken is required" }, { status: 400 });
+  const accessToken =
+    typeof body.accessToken === "string" ? body.accessToken : null;
+  const refreshToken =
+    typeof body.refreshToken === "string" ? body.refreshToken : null;
+  if (!accessToken || !refreshToken) {
+    return NextResponse.json(
+      { error: "accessToken and refreshToken are required" },
+      { status: 400 },
+    );
   }
 
-  try {
-    const decoded = await adminAuth.verifyIdToken(idToken, true);
-
-    const sessionCookie = await adminAuth.createSessionCookie(idToken, {
-      expiresIn: SESSION_EXPIRY_MS,
-    });
-
-    // Profile document (rules give the user read/update on their own doc).
-    // Created on first sign-in; lastSignInAt refreshed afterwards.
-    await adminDb
-      .collection("users")
-      .doc(decoded.uid)
-      .set(
-        {
-          email: decoded.email ?? null,
-          lastSignInAt: new Date(),
-        },
-        { merge: true },
+  const cookieStore = await cookies();
+  const supabase = createSsrSupabase({
+    getAll: async () => cookieStore.getAll(),
+    setAll: (cookiesToSet) => {
+      cookiesToSet.forEach(({ name, value, options }) =>
+        cookieStore.set(name, value, options),
       );
+    },
+  });
 
-    const response = NextResponse.json({
-      ok: true,
-      uid: decoded.uid,
-      isAdmin: decoded.admin === true,
+  try {
+    const { data, error } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
     });
 
-    response.cookies.set(SESSION_COOKIE, sessionCookie, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: SESSION_EXPIRY_MS / 1000,
-      path: "/",
-    });
-
-    return response;
-  } catch (error) {
-    // Distinguish user-facing auth failures from infrastructure crashes.
-    const code =
-      typeof error === "object" && error !== null && "code" in error
-        ? String((error as { code: unknown }).code)
-        : "";
-
-    if (code.startsWith("auth/")) {
+    if (error || !data.session) {
       return NextResponse.json(
         { error: "Invalid or expired credentials" },
         { status: 401 },
       );
     }
 
+    const user = data.session.user;
+
+    // Profile row (mirrors users/{uid}): created on first sign-in,
+    // lastSignInAt refreshed afterwards.
+    await getServiceClient()
+      .from("profiles")
+      .upsert(
+        {
+          id: user.id,
+          email: user.email ?? null,
+          last_sign_in_at: new Date().toISOString(),
+        },
+        { onConflict: "id" },
+      );
+
+    return NextResponse.json({
+      ok: true,
+      uid: user.id,
+      isAdmin: user.app_metadata?.is_admin === true,
+    });
+  } catch (error) {
     console.error("[auth/session] Unexpected failure:", error);
     return NextResponse.json(
       { error: "Internal server error" },

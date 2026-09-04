@@ -10,9 +10,29 @@ on:
 jobs:
   fetch:
     runs-on: ubuntu-latest
+    env:
+      # Mapped from repo secrets (names set via `gh secret set`). The script
+      # reads these through lib/supabase/env.ts — same contract as .env.local.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
-      - name: Trigger fetch webhook
-        run: |
-          curl -sS -f --max-time 120 \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.SITE_URL }}/api/cron/fetch"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run full fetch cycle
+        run: npx tsx --tsconfig scripts/tsconfig.json scripts/fetch-all.ts
+
+      # Deploy-time note: if a public deployment exists, this job could
+      # instead hit GET /api/cron/fetch with CRON_SECRET (which purges the
+      # ISR cache via revalidatePath — something a standalone runner cannot
+      # do). The direct-Supabase path needs no deployment and is the correct
+      # engine while the site is unhosted.

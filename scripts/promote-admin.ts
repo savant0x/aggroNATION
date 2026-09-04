@@ -1,18 +1,19 @@
 /**
- * Promote a Firebase Auth user to admin (FID-004 bootstrap).
+ * Promote a Supabase user to admin (FID-004 bootstrap, migrated per
+ * FID-2026-0904-010).
  *
  * Usage:
- *   FIREBASE_ADMIN_CLIENT_EMAIL=... FIREBASE_ADMIN_PRIVATE_KEY=... \
- *     npx tsx scripts/promote-admin.ts <uid-or-email>
+ *   npx tsx --env-file=.env.local scripts/promote-admin.ts <uid-or-email>
  *
- * Requires service-account credentials (or ADC with project access).
- * Sets the `admin` custom claim consumed by Firestore rules and
- * lib/auth/session.ts, and ensures the /users/{uid} profile doc exists.
+ * Uses the service-role client. Sets `app_metadata.is_admin` (the JWT claim
+ * lib/auth/session.ts reads — the Firebase custom-claim analog) and mirrors
+ * it in the profiles table. Takes effect on the user's next token refresh /
+ * re-sign-in (identical to the Firebase behavior).
  */
 
-import { applicationDefault, cert, getApps, initializeApp } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import "dotenv/config";
+
+import { getServiceClient } from "../lib/supabase/admin";
 
 async function main(): Promise<void> {
   const target = process.argv[2];
@@ -21,39 +22,57 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
-  const rawKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+  const adminAuth = getServiceClient().auth.admin;
 
-  const app = getApps()[0] ?? initializeApp({
-    credential:
-      clientEmail && rawKey
-        ? cert({ clientEmail, privateKey: rawKey.replace(/\\n/g, "\n") })
-        : applicationDefault(),
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "aggronation-app",
-  });
+  let uid: string;
+  let email: string | null;
+  if (target.includes("@")) {
+    // Admin API has no getUserByEmail — page through users (tiny user base).
+    const { data, error } = await adminAuth.listUsers({ page: 1, perPage: 1000 });
+    if (error) throw new Error(error.message);
+    const match = data.users.find((u) => u.email === target);
+    if (!match) {
+      console.error(`No user found with email ${target}.`);
+      process.exit(1);
+    }
+    uid = match.id;
+    email = match.email ?? null;
+  } else {
+    const { data, error } = await adminAuth.getUserById(target);
+    if (error) throw new Error(error.message);
+    if (!data.user) {
+      console.error(`No user found with uid ${target}.`);
+      process.exit(1);
+    }
+    uid = data.user.id;
+    email = data.user.email ?? null;
+  }
 
-  const auth = getAuth(app);
-  const db = getFirestore(app);
+  // Read current app_metadata first — updateUserById REPLACES the object.
+  const { data: existing } = await adminAuth.getUserById(uid);
+  const appMetadata = {
+    ...(existing?.user?.app_metadata ?? {}),
+    is_admin: true,
+  };
+  await adminAuth.updateUserById(uid, { app_metadata: appMetadata });
 
-  const user = target.includes("@")
-    ? await auth.getUserByEmail(target)
-    : await auth.getUser(target);
-
-  await auth.setCustomUserClaims(user.uid, { admin: true });
-
-  await db.collection("users").doc(user.uid).set(
+  await getServiceClient().from("profiles").upsert(
     {
-      email: user.email ?? null,
-      promotedToAdminAt: new Date(),
+      id: uid,
+      email,
+      is_admin: true,
     },
-    { merge: true },
+    { onConflict: "id" },
   );
 
-  console.log(`✅ ${user.email ?? user.uid} is now an admin (uid: ${user.uid})`);
-  console.log("   Claim takes effect on next sign-in / session refresh.");
+  console.log(`✅ ${email ?? uid} is now an admin (uid: ${uid})`);
+  console.log("   Claim takes effect on next sign-in / token refresh.");
 }
 
 main().catch((error: unknown) => {
-  console.error("Promotion failed:", error instanceof Error ? error.message : error);
+  console.error(
+    "Promotion failed:",
+    error instanceof Error ? error.message : error,
+  );
   process.exit(1);
 });

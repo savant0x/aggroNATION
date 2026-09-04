@@ -15,7 +15,10 @@ export const metadata: Metadata = {
   },
   description: siteConfig.description,
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "32x32" },
+    ],
   },
 };
 
@@ -32,7 +35,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html suppressHydrationWarning lang="en">
+    <html suppressHydrationWarning lang="en" className="dark">
       <head />
       <body
         className={clsx(
@@ -41,8 +44,24 @@ export default function RootLayout({
           fontDisplay.variable,
         )}
       >
-        <Providers themeProps={{ attribute: "class", defaultTheme: "dark" }}>
-          <div className="relative flex flex-col h-screen">
+        {/*
+          Full-page operator pattern (FID-021 rev 4): bg.jpg tiles behind the
+          entire site, dimmed by an ~85% black overlay so it stays barely
+          visible. Fixed attachment so the pattern doesn't scroll with the
+          page; pointer-events-none keeps it purely decorative; z-0 sits
+          beneath the content wrapper (z-10).
+        */}
+        <div
+          aria-hidden="true"
+          className="bg-pattern pointer-events-none fixed inset-0 z-0"
+        />
+        <div
+          aria-hidden="true"
+          className="bg-pattern-veil pointer-events-none fixed inset-0 z-0"
+        />
+
+        <Providers>
+          <div className="relative z-10 flex flex-col h-screen">
             <Navbar />
             <main className="container mx-auto max-w-7xl pt-16 px-6 flex-grow">
               {children}

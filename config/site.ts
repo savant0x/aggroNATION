@@ -3,7 +3,8 @@ export type SiteConfig = typeof siteConfig;
 export const siteConfig = {
   name: "aggroNATION",
   description:
-    "Intelligent AI content aggregator — YouTube, RSS, Reddit and X, fetched automatically and ranked by engagement.",
+    "Intelligent AI content aggregator — YouTube, RSS, Reddit, HuggingFace and GitHub repos, fetched automatically and ranked by engagement.",
+  adminPath: "/admin",
   navItems: [
     {
       label: "Home",
@@ -14,11 +15,27 @@ export const siteConfig = {
       href: "/youtube",
     },
     {
+      label: "RSS",
+      href: "/rss",
+    },
+    {
+      label: "Reddit",
+      href: "/reddit",
+    },
+    {
+      label: "HuggingFace",
+      href: "/huggingface",
+    },
+    {
+      label: "GitHub",
+      href: "/github",
+    },
+    {
       label: "About",
       href: "/about",
     },
   ],
   links: {
-    github: "https://github.com/spenc-howell/aggroNATION",
+    github: "https://github.com/savant0x/aggroNATION",
   },
 };

@@ -15,6 +15,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
 
 import { runFetchAllSources } from "@/lib/services/fetch-service";
+import { purgeContentRoutes } from "@/lib/cache/revalidate";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -49,6 +50,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await runFetchAllSources();
+    // Content changed — purge the ISR cache so the next visitor sees it.
+    purgeContentRoutes();
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     return NextResponse.json(

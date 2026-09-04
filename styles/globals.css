@@ -37,6 +37,44 @@ body {
 }
 
 /*
+ * Pin HeroUI semantic vars to our palette (FID-015). HeroUI's field tokens
+ * (--field-foreground etc.) resolve against ITS OWN --foreground/--muted,
+ * which our custom palette never defined per-theme — so input text ignored
+ * theme flips. Pinning them here makes every HeroUI input follow the theme.
+ */
+.dark {
+  --foreground: #f4f4f6;
+  --muted: #8b8b98;
+  --field-background: #121218;
+  --field-border: #1d1d26;
+}
+
+:root:not(.dark) {
+  --foreground: #16161d;
+  --muted: #5c5c6b;
+  --field-background: #ffffff;
+  --field-border: #e4e4ec;
+}
+
+/*
+ * Light-theme token overrides (FID-010). The "aggro neon" palette above is
+ * static by default; without these the near-white body text stays invisible
+ * on HeroUI's light background. Only the neutral surface/text/edge family
+ * flips — the accent family is legible on both canvases and stays.
+ */
+:root:not(.dark) {
+  --color-base: #f6f6f9;
+  --color-surface: #ffffff;
+  --color-raised: #ffffff;
+  --color-edge: #e4e4ec;
+  --color-text-primary: #16161d;
+  --color-text-muted: #5c5c6b;
+  --grid-line: rgba(10, 10, 20, 0.05);
+  --accent-glow: rgba(124, 58, 237, 0.22);
+  --accent-bright-glow: rgba(34, 211, 238, 0.18);
+}
+
+/*
  * Subtle 48px grid texture for hero backgrounds. Decorative only —
  * hidden from assistive tech via aria-hidden at usage sites.
  */
@@ -46,6 +84,26 @@ body {
     linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
   background-size: 48px 48px;
   mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 30%, transparent 75%);
+}
+
+/*
+ * Full-page pattern overlay (FID-021 rev 4): bg.jpg tiles behind everything
+ * under a dimming veil. Theme-tuned — dark mode lets a little more of the
+ * pattern through (75% veil), light mode stays lighter-touch (92% veil, so
+ * pages keep their clean white feel with only a hint of texture).
+ */
+.bg-pattern {
+  background-image: url('/bg.jpg');
+  background-repeat: repeat;
+  background-size: auto;
+}
+
+.bg-pattern-veil {
+  background-color: rgba(0, 0, 0, 0.75);
+}
+
+:root:not(.dark) .bg-pattern-veil {
+  background-color: rgba(255, 255, 255, 0.92);
 }
 
 /*
@@ -87,4 +145,56 @@ body {
   transform: translateY(-3px);
   border-color: color-mix(in oklab, var(--color-accent) 55%, transparent);
   box-shadow: 0 0 24px var(--accent-glow);
+}
+
+/*
+ * Hero banner bloom (FID-2026-0904-002): the operator banner gets a halo of
+ * the site's accent glows behind it, plus mirrored gradient edges. The bloom
+ * is theme-tuned like the rest of the system — stronger in dark mode, softer
+ * in light mode (restraint is the premium signal, FID-006 design law).
+ */
+.banner-glow {
+  box-shadow:
+    0 0 80px var(--accent-glow),
+    0 0 200px var(--accent-bright-glow);
+}
+
+:root:not(.dark) .banner-glow {
+  box-shadow:
+    0 0 48px var(--accent-glow),
+    0 0 120px var(--accent-bright-glow);
+}
+
+/*
+ * Signal dot (FID-2026-0904-005 "signal bar"): the live-pipeline pulse.
+ * Two-layer soft glow + a slow breathe — the one moving element in the
+ * chrome. Honors prefers-reduced-motion by holding the lit state.
+ */
+.signal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--color-accent-bright);
+  box-shadow:
+    0 0 6px var(--accent-bright-glow),
+    0 0 14px var(--accent-bright-glow);
+  animation: signal-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes signal-breathe {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.82);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signal-dot {
+    animation: none;
+  }
 }

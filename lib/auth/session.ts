@@ -1,22 +1,21 @@
 /**
- * Session verification (FID-004) — server-only gate for protected routes.
+ * Session verification (FID-004, migrated to Supabase per FID-2026-0904-010)
+ * — server-only gate for protected routes.
  *
- * The session cookie is a Firebase session cookie (created from a verified
- * ID token), cryptographically signed by Firebase — it cannot be hand-crafted,
- * unlike the legacy build's plain-base64 session.
- *
- * NOTE: verification deliberately lives in server components/routes, NOT in
- * edge middleware — firebase-admin cannot run on the Edge runtime.
+ * The session lives in the @supabase/ssr cookie pair (httpOnly). getCurrentUser
+ * verifies the access token and reads the admin flag from the JWT's
+ * app_metadata (the Supabase custom-claim analog of Firebase's `admin`
+ * claim — zero extra lookups per gate; profiles.is_admin mirrors it for SQL).
+ * The middleware refreshes the token on navigation so sessions persist
+ * silently (Firebase session cookies were 7 days; the refresh token is the
+ * long-lived half of the pair).
  */
 
 import "server-only";
 
 import { cookies } from "next/headers";
 
-import { adminAuth } from "@/lib/firebase/admin";
-
-export const SESSION_COOKIE = "aggro_session";
-export const SESSION_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+import { createSsrSupabase } from "@/lib/supabase/ssr";
 
 export interface SessionUser {
   uid: string;
@@ -36,28 +35,32 @@ export class AuthError extends Error {
 }
 
 /**
- * Verify the session cookie and return the user, or null when absent/invalid.
- * `admin` reflects the Firebase custom claim checked by Firestore rules.
+ * Verify the session cookie pair and return the user, or null when
+ * absent/invalid. `isAdmin` reflects the JWT app_metadata claim.
  */
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get(SESSION_COOKIE)?.value;
+  const supabase = createSsrSupabase({
+    getAll: async () => cookieStore.getAll(),
+    // Server components cannot write cookies — the middleware refreshes the
+    // token pair on the next request.
+    setAll: async () => {},
+  });
 
-  if (!sessionCookie) {
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
     return null;
   }
 
-  try {
-    const decoded = await adminAuth.verifySessionCookie(sessionCookie, true);
-    return {
-      uid: decoded.uid,
-      email: decoded.email ?? null,
-      isAdmin: decoded.admin === true,
-    };
-  } catch {
-    // Expired, revoked, or invalid — treat uniformly as unauthenticated.
-    return null;
-  }
+  return {
+    uid: user.id,
+    email: user.email ?? null,
+    isAdmin: user.app_metadata?.is_admin === true,
+  };
 }
 
 /**

@@ -1,43 +1,56 @@
 /**
- * GET /api/health — FID-001 verification probe.
+ * GET /api/health — FID-001 verification probe (migrated per
+ * FID-2026-0904-010).
  *
- * Confirms both Firebase contexts initialize:
- * - admin: Admin SDK app constructed (credentials resolve lazily on first call)
- * - client: web SDK app identity (config completeness)
+ * Confirms both Supabase contexts initialize:
+ * - service: service-role client construction + a read-only DB round trip
+ * - client: anon-key env completeness (browser config)
  *
  * Deliberately dependency-free and read-only so it is safe to expose.
  */
 
 import { NextResponse } from "next/server";
 
-import { adminApp } from "@/lib/firebase/admin";
-import { firebaseApp } from "@/lib/firebase/client";
+import { getServiceClient } from "@/lib/supabase/admin";
+import { supabaseClientEnv } from "@/lib/supabase/env";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    // One trivial, bounded read proves the service client can reach the DB.
+    const { error } = await getServiceClient()
+      .from("content")
+      .select("id", { count: "exact", head: true })
+      .limit(1);
+
     return NextResponse.json({
-      ok: true,
+      ok: !error,
       checks: {
-        adminApp: {
-          initialized: Boolean(adminApp),
-          name: adminApp.name,
+        serviceRole: {
+          initialized: true,
+          dbReachable: !error,
+          error: error?.message ?? null,
         },
         clientApp: {
-          initialized: Boolean(firebaseApp),
-          projectId: firebaseApp.options.projectId ?? null,
+          initialized: Boolean(
+            supabaseClientEnv.NEXT_PUBLIC_SUPABASE_URL &&
+              supabaseClientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          ),
+          projectRef:
+            supabaseClientEnv.NEXT_PUBLIC_SUPABASE_URL.replace(
+              "https://",
+              "",
+            ).replace(".supabase.co", "") ?? null,
         },
       },
     });
-  } catch (error) {
+  } catch (err) {
     return NextResponse.json(
       {
         ok: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Unknown health check failure",
+          err instanceof Error ? err.message : "Unknown health check failure",
       },
       { status: 500 },
     );

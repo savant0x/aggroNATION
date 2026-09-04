@@ -8,7 +8,21 @@
 
 import { z } from "zod";
 
-export const SOURCE_TYPES = ["youtube", "rss", "reddit", "x"] as const;
+/**
+ * Source types (FID-002; "x" removed per FID-2026-0904-004 — X's free API
+ * tier was discontinued 2026-02 and no honest free read path exists;
+ * "trendshift" added per FID-2026-0904-003; "opensource" added per
+ * FID-2026-0904-009 — open-source project discovery is its own category,
+ * not an RSS sub-flavor).
+ */
+export const SOURCE_TYPES = [
+  "youtube",
+  "rss",
+  "reddit",
+  "huggingface",
+  "trendshift",
+  "opensource",
+] as const;
 
 export const sourceTypeSchema = z.enum(SOURCE_TYPES);
 export type SourceType = z.infer<typeof sourceTypeSchema>;
@@ -66,6 +80,26 @@ export const contentMetricsSchema = z.object({
   rating: z.number().min(0).max(1).default(0),
 });
 
+/**
+ * Structured GitHub repo facts (FID-2026-0904-009), denormalized onto content
+ * docs at FETCH time (cron — never per render; unauthenticated GitHub allows
+ * 60 req/h site-wide, token'd 5,000). Null/absent on non-repo items.
+ */
+export const githubRepoSchema = z.object({
+  /** Canonical lowercase `owner/repo`. */
+  slug: z.string().min(1),
+  description: z.string().nullable().default(null),
+  stars: z.number().int().min(0).default(0),
+  forks: z.number().int().min(0).default(0),
+  language: z.string().nullable().default(null),
+  topics: z.array(z.string().min(1)).default([]),
+  license: z.string().nullable().default(null),
+  homepage: z.string().nullable().default(null),
+  pushedAt: z.string().nullable().default(null),
+  /** Official GitHub og-card for the repo (no auth, deterministic). */
+  ogImageUrl: z.string().url(),
+});
+
 export const contentSchema = z.object({
   id: z.string().min(1),
   sourceId: z.string().min(1),
@@ -74,9 +108,23 @@ export const contentSchema = z.object({
   externalId: z.string().min(1),
   title: z.string().min(1),
   excerpt: z.string().default(""),
+  /**
+   * Full article body the publisher syndicated in the feed (FID-020),
+   * sanitized at fetch time. Optional: youtube docs and pre-FID-020 rss docs
+   * lack it (deterministic-id re-fetch backfills). The reader renders this
+   * FIRST — before any live scrape of the source page.
+   */
+  contentHtml: z.string().max(500_000).optional(),
   url: z.string().url(),
   /** Origin thumbnail image, when the source provides one. */
   thumbnailUrl: z.string().url().nullable().default(null),
+  /**
+   * Denormalized source name (FID-2026-0904-007) — lets cards identify the
+   * feed without a per-render source lookup. Null on pre-backfill docs.
+   */
+  sourceName: z.string().min(1).max(120).nullable().default(null),
+  /** GitHub repo facts (FID-2026-0904-009) — trendshift + opensource items. */
+  github: githubRepoSchema.nullable().default(null),
   author: z.string().default(""),
   publishedAt: z.date(),
   tags: z.array(z.string().min(1)).default([]),
@@ -93,6 +141,24 @@ export const contentSchema = z.object({
 });
 
 export type ContentItem = z.infer<typeof contentSchema>;
+
+/**
+ * Comments (FID-013). Append-only, soft-archive moderation. Stored with the
+ * author's email for accountability; the UI renders only the local-part —
+ * never the full address (never expose more identity than the feature needs).
+ */
+export const commentSchema = z.object({
+  id: z.string().min(1),
+  /** Content document id the comment belongs to (`youtube_{videoId}`). */
+  contentId: z.string().min(1),
+  userId: z.string().min(1),
+  userEmail: z.string().email(),
+  body: z.string().min(1).max(2000),
+  archived: z.boolean().default(false),
+  createdAt: z.date(),
+});
+
+export type Comment = z.infer<typeof commentSchema>;
 
 /**
  * Deterministic content document id — the dedupe strategy (FID-002).

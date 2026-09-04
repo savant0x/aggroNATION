@@ -1,8 +1,8 @@
 import { FC, useSyncExternalStore } from "react";
-import { useTheme } from "next-themes";
 import clsx from "clsx";
 
 import { SunFilledIcon, MoonFilledIcon } from "@/components/icons";
+import { useTheme } from "@/components/theme-provider";
 
 export interface ThemeSwitchProps {
   className?: string;
@@ -16,9 +16,9 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({ className }) => {
     () => true,
     () => false,
   );
-  const { setTheme, resolvedTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
 
-  const isLight = resolvedTheme === "light";
+  const isLight = theme === "light";
 
   const handleToggle = () => {
     setTheme(isLight ? "dark" : "light");

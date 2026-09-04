@@ -2,6 +2,11 @@ import * as React from "react";
 
 import { IconSvgProps } from "@/types";
 
+/**
+ * aggroNATION mark (FID-008): an "A" chevron formed by two ascending signal
+ * bars — aggregation collecting rising signals. currentColor keeps it
+ * theme-aware; the navbar wraps it in the shared gradient utility.
+ */
 export const Logo: React.FC<IconSvgProps> = ({
   size = 36,
   width,
@@ -16,10 +21,17 @@ export const Logo: React.FC<IconSvgProps> = ({
     {...props}
   >
     <path
-      clipRule="evenodd"
-      d="M17.6482 10.1305L15.8785 7.02583L7.02979 22.5499H10.5278L17.6482 10.1305ZM19.8798 14.0457L18.11 17.1983L19.394 19.4511H16.8453L15.1056 22.5499H24.7272L19.8798 14.0457Z"
+      d="M4 26L14 5H18L28 26H23.4L21.2 21H10.8L8.6 26H4ZM16 10.6L12.4 17.4H19.6L16 10.6Z"
       fill="currentColor"
-      fillRule="evenodd"
+    />
+    <rect
+      x="21.6"
+      y="3"
+      width="3.4"
+      height="12"
+      rx="1.7"
+      fill="currentColor"
+      opacity="0.55"
     />
   </svg>
 );

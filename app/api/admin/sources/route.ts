@@ -14,8 +14,13 @@ import {
   getAllSources,
   getSourceByUrl,
 } from "@/lib/repositories/source-repo";
+import { runFetchForSource } from "@/lib/services/fetch-service";
+import { purgeContentRoutes } from "@/lib/cache/revalidate";
 
 export const dynamic = "force-dynamic";
+
+/** Bounded auto-fetch on create (FID-016). */
+export const maxDuration = 60;
 
 const createSourceSchema = z.object({
   type: sourceTypeSchema,
@@ -82,7 +87,26 @@ export async function POST(request: NextRequest) {
     }
 
     const source = await createSource(parsed.data);
-    return NextResponse.json({ source }, { status: 201 });
+
+    // Auto-fetch the new source immediately (FID-016) — awaited so the feed is
+    // filled before the operator sees it; failures are data, not thrown.
+    const fetch = await runFetchForSource(source);
+
+    // New content on the page — purge the ISR cache.
+    purgeContentRoutes();
+
+    return NextResponse.json(
+      {
+        source,
+        fetch: {
+          ran: true,
+          itemsFetched: fetch.itemsFetched,
+          error: fetch.error,
+          warnings: fetch.warnings,
+        },
+      },
+      { status: 201 },
+    );
   } catch (error) {
     return errorResponse(error);
   }

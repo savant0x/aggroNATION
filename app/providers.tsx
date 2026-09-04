@@ -1,15 +1,13 @@
 "use client";
 
-import type { ThemeProviderProps } from "next-themes";
+import type { ReactNode } from "react";
 
-import * as React from "react";
-import { ThemeProvider as NextThemesProvider } from "next-themes";
+import { ThemeProvider } from "@/components/theme-provider";
 
-export interface ProvidersProps {
-  children: React.ReactNode;
-  themeProps?: ThemeProviderProps;
-}
-
-export function Providers({ children, themeProps }: ProvidersProps) {
-  return <NextThemesProvider {...themeProps}>{children}</NextThemesProvider>;
+/**
+ * App-level client providers (FID-010). The theme provider is owned
+ * in-repo — no third-party script-in-tree provider — per FID-010.
+ */
+export function Providers({ children }: { children: ReactNode }) {
+  return <ThemeProvider>{children}</ThemeProvider>;
 }

@@ -1,8 +1,10 @@
 "use client";
 
 /**
- * Login page (FID-004) — email/password + Google sign-in via the web SDK,
- * exchanging the resulting ID token for a server session cookie.
+ * Login page (FID-004, migrated per FID-2026-0904-010) — email/password
+ * sign-in via supabase-js, exchanging the resulting session for the server
+ * cookie pair. Google OAuth is deferred until the hosted project configures
+ * the provider (operator decision, recorded in the FID).
  */
 
 import { useState } from "react";
@@ -10,34 +12,26 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Alert, Button, TextField, Input, Label } from "@heroui/react";
 
-import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
-
-import {
-  auth,
-  googleProvider,
-  connectToEmulatorsIfConfigured,
-} from "@/lib/firebase/client";
+import { supabase } from "@/lib/supabase/client";
 import { siteConfig } from "@/config/site";
 
 type FormError = string | null;
 
-/** Map Firebase auth error codes to human messages (no internals leaked). */
-function authErrorMessage(code: string): string {
+/** Map Supabase auth error codes to human messages (no internals leaked). */
+function authErrorMessage(code: string, message: string): string {
   switch (code) {
-    case "auth/invalid-credential":
-    case "auth/wrong-password":
-    case "auth/user-not-found":
+    case "invalid_credentials":
       return "Invalid email or password.";
-    case "auth/too-many-requests":
+    case "email_not_confirmed":
+      return "This email hasn't been confirmed yet.";
+    case "over_request_rate_limit":
+    case "rate_limit_exceeded":
       return "Too many attempts — try again in a minute.";
-    case "auth/popup-closed-by-user":
-      return "Google sign-in was cancelled.";
-    case "auth/popup-blocked":
-      return "Your browser blocked the sign-in popup — allow popups and retry.";
-    case "auth/network-request-failed":
+    case "network_error":
+    case "network_request_failed":
       return "Network error — check your connection.";
     default:
-      return "Sign-in failed. Try again.";
+      return message || "Sign-in failed. Try again.";
   }
 }
 
@@ -48,11 +42,14 @@ export default function LoginPage() {
   const [error, setError] = useState<FormError>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function exchangeForSession(idToken: string): Promise<void> {
+  async function exchangeForSession(
+    accessToken: string,
+    refreshToken: string,
+  ): Promise<void> {
     const response = await fetch("/api/auth/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken }),
+      body: JSON.stringify({ accessToken, refreshToken }),
     });
 
     if (!response.ok) {
@@ -63,54 +60,56 @@ export default function LoginPage() {
     }
   }
 
+  /** Admins land on the dashboard; regular users on the home feed (FID-009). */
+  async function resolvePostLoginPath(): Promise<string> {
+    try {
+      const response = await fetch("/api/auth/me", {
+        credentials: "same-origin",
+      });
+      if (response.ok) {
+        const body = (await response.json()) as {
+          user?: { isAdmin?: boolean } | null;
+        };
+        if (body.user?.isAdmin === true) {
+          return siteConfig.adminPath;
+        }
+      }
+    } catch {
+      // Fall through to the default path.
+    }
+    return "/";
+  }
+
   async function handleEmailSignIn(event: React.FormEvent): Promise<void> {
     event.preventDefault();
     setError(null);
     setIsSubmitting(true);
     try {
-      await connectToEmulatorsIfConfigured();
-      const credential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password,
+      const { data, error: signInError } =
+        await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        throw signInError;
+      }
+      if (!data.session) {
+        throw new Error("Sign-in failed. Try again.");
+      }
+      await exchangeForSession(
+        data.session.access_token,
+        data.session.refresh_token,
       );
-      await exchangeForSession(await credential.user.getIdToken());
-      router.push("/");
+      router.push(await resolvePostLoginPath());
+      router.refresh();
     } catch (err) {
       const code =
         typeof err === "object" && err !== null && "code" in err
           ? String((err as { code: unknown }).code)
           : "";
+      const message = err instanceof Error ? err.message : "Sign-in failed.";
       setError(
-        code.startsWith("auth/")
-          ? authErrorMessage(code)
-          : err instanceof Error
-            ? err.message
-            : "Sign-in failed.",
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  async function handleGoogleSignIn(): Promise<void> {
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      await connectToEmulatorsIfConfigured();
-      const credential = await signInWithPopup(auth, googleProvider);
-      await exchangeForSession(await credential.user.getIdToken());
-      router.push("/");
-    } catch (err) {
-      const code =
-        typeof err === "object" && err !== null && "code" in err
-          ? String((err as { code: unknown }).code)
-          : "";
-      setError(
-        code.startsWith("auth/")
-          ? authErrorMessage(code)
-          : err instanceof Error
-            ? err.message
+        code
+          ? authErrorMessage(code, message)
+          : message.includes("Session establishment failed")
+            ? message
             : "Sign-in failed.",
       );
     } finally {
@@ -169,25 +168,10 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <div className="my-5 flex items-center gap-3 text-xs text-muted">
-          <span className="h-px flex-1 bg-[var(--color-edge)]" />
-          or
-          <span className="h-px flex-1 bg-[var(--color-edge)]" />
-        </div>
-
-        <Button
-          variant="tertiary"
-          onPress={handleGoogleSignIn}
-          isDisabled={isSubmitting}
-          className="w-full rounded-xl border border-[var(--color-edge)] bg-[var(--color-surface)]"
-        >
-          Continue with Google
-        </Button>
-
         <p className="mt-6 text-center text-xs text-muted">
-          Admin access is granted by the operator.{" "}
-          <Link href="/" className="underline hover:text-accent">
-            Back to home
+          New here?{" "}
+          <Link href="/register" className="underline hover:text-accent">
+            Create an account
           </Link>
         </p>
       </div>
