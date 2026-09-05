@@ -164,6 +164,16 @@ export default async function AboutPage() {
                 );
               })}
             </ul>
+            <p className="text-xs text-muted">
+              Full engine heartbeat — cycle history and per-source results — on{" "}
+              <Link
+                href="/status"
+                className="underline hover:text-[var(--color-accent-bright)]"
+              >
+                the status page
+              </Link>
+              .
+            </p>
           </div>
         )}
       </section>

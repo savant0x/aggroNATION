@@ -28,8 +28,10 @@ import { computeRating } from "@/lib/fetchers/rating";
 import { stripLoneSurrogates, truncateSafe } from "@/lib/strings";
 import {
   upsertContentBatch,
+  refreshMomentumBaselines,
   type UpsertContentInput,
 } from "@/lib/repositories/content-repo";
+import { recordFetchCycle } from "@/lib/repositories/cycle-repo";
 import {
   getEnabledSources,
   saveResolutionCache,
@@ -62,6 +64,8 @@ export interface SourceFetchOutcome {
 
 export interface FetchAllResult {
   ranAt: Date;
+  /** Wall-clock duration of the whole cycle (FID-2026-0905-002). */
+  durationMs: number;
   totalSources: number;
   succeeded: number;
   failed: number;
@@ -774,8 +778,18 @@ export async function runFetchAllSources(): Promise<FetchAllResult> {
     }
   }
 
-  return {
+  // FID-2026-0905-002 self-correct: refresh the rolling day/week momentum
+  // baselines so Rising measures real movement, not per-cycle decay noise.
+  // Surveillance-grade: a failed refresh never breaks ingestion.
+  try {
+    await refreshMomentumBaselines();
+  } catch (error) {
+    console.error("[fetch] momentum baseline refresh failed:", error);
+  }
+
+  const result: FetchAllResult = {
     ranAt,
+    durationMs: Date.now() - ranAt.getTime(),
     totalSources: sources.length,
     succeeded: outcomes.filter((o) => o.ok).length,
     failed: outcomes.filter((o) => !o.ok).length,
@@ -783,4 +797,15 @@ export async function runFetchAllSources(): Promise<FetchAllResult> {
     outcomes,
     scrubFindings,
   };
+
+  // FID-2026-0905-002: persist the cycle for /status. Observability must
+  // never break ingestion — a failed record logs and moves on (the status
+  // page then honestly shows a gap instead of faking health).
+  try {
+    await recordFetchCycle(result);
+  } catch (error) {
+    console.error("[fetch] cycle record failed:", error);
+  }
+
+  return result;
 }

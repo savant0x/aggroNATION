@@ -68,6 +68,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
       priority: 0.7,
     },
+    {
+      url: `${siteConfig.url}/status`,
+      lastModified: now,
+      priority: 0.3,
+    },
   ];
 
   try {

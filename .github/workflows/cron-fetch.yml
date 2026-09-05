@@ -50,7 +50,8 @@ jobs:
             echo "::warning::SITE_URL and/or CRON_SECRET not set — skipping purge (listing pages self-heal at their revalidate windows)"
             exit 0
           fi
-          http=$(curl -sS -o /dev/null -w '%{http_code}' \
+          response=$(mktemp)
+          http=$(curl -sS -o "$response" -w '%{http_code}' \
             --max-time 60 \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$SITE_URL/api/cron/purge") || {
@@ -59,6 +60,12 @@ jobs:
             }
           if [ "$http" = "200" ]; then
             echo "Purge OK (HTTP 200)"
+            # FID-2026-0905-002 stream D: surface source failures from the
+            # just-finished cycle (the purge body carries its health).
+            failed=$(grep -oE '"failed":[0-9]+' "$response" | grep -oE '[0-9]+' || true)
+            if [ -n "$failed" ] && [ "$failed" -gt 0 ]; then
+              echo "::warning::fetch cycle reported $failed failed source(s) — see /status for per-source detail"
+            fi
           else
             echo "::warning::purge webhook returned HTTP $http — listing pages self-heal at their revalidate windows"
           fi

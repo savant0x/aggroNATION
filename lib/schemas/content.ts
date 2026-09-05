@@ -78,6 +78,20 @@ export const contentMetricsSchema = z.object({
   comments: z.number().int().min(0).default(0),
   /** Computed at fetch time, range [0, 1]. FID-003 owns the formula. */
   rating: z.number().min(0).max(1).default(0),
+  /** Rating at the previous fetch cycle (FID-2026-0905-002): momentum
+   *  baseline. Optional — first sight has none; parse must NOT strip it
+   *  (zod strips undeclared keys), or deltas become invisible to TSX. */
+  prevRating: z.number().min(0).max(1).optional(),
+  /** Rolling momentum baselines (FID-2026-0905-002 self-correct):
+   *  per-cycle deltas are decay-noise (rating decays every cycle, so a
+   *  week's gain evaporates from prev_rating within one hour). These
+   *  baselines are carried on the row and refreshed only when older than
+   *  their window (day / week), so deltas measure real movement over real
+   *  spans. ISO timestamps mark when each baseline was snapshotted. */
+  ratingDayAgo: z.number().min(0).max(1).optional(),
+  ratingDayAgoAt: z.string().optional(),
+  ratingWeekAgo: z.number().min(0).max(1).optional(),
+  ratingWeekAgoAt: z.string().optional(),
 });
 
 /**

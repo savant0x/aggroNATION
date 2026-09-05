@@ -344,6 +344,101 @@ export async function getLatestContentPage(options: {
   return { items };
 }
 
+/**
+ * Momentum baseline refresh (FID-2026-0905-002 self-correct).
+ *
+ * Per-cycle deltas are decay-noise: the rating decays every cycle, so a
+ * week's organic gain evaporates from prev_rating within one hour (observed
+ * live: top movers went 2 → 0 across one cycle). Movement is therefore
+ * measured against rolling day/week baselines CARRIED ON THE ROW and
+ * refreshed only when older than their window — a staircase of snapshots
+ * that approximates "rating N ago" and can never lose a gain to decay.
+ *
+ * Bounded work: at most MAX_BASELINE_REFRESHES rows patched per cycle; the
+ * rest catch up on subsequent cycles (steady state ≈ rows/day, far below
+ * the cap). The read-modify-write merges the full metrics blob; the race
+ * window against a concurrent upsert is milliseconds and single-cycle
+ * staleness is the worst case.
+ */
+const MAX_BASELINE_REFRESHES = 400;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
+
+export async function refreshMomentumBaselines(): Promise<number> {
+  const client = getServiceClient();
+  const { data, error } = await client
+    .from(CONTENT_TABLE)
+    .select("id, metrics")
+    .eq("archived", false)
+    .gte("updated_at", new Date(Date.now() - 8 * DAY_MS).toISOString())
+    .limit(2000);
+  if (error) {
+    throw new Error(`refreshMomentumBaselines (read) failed: ${error.message}`);
+  }
+
+  const nowIso = new Date().toISOString();
+  let patched = 0;
+  for (const row of (data ?? []) as {
+    id: string;
+    metrics: Record<string, unknown> | null;
+  }[]) {
+    if (patched >= MAX_BASELINE_REFRESHES) {
+      break;
+    }
+    const m = row.metrics ?? {};
+    const rating = Number(m.rating ?? 0);
+    if (!Number.isFinite(rating)) {
+      continue;
+    }
+    const dayAt = m.ratingDayAgoAt ? Date.parse(String(m.ratingDayAgoAt)) : NaN;
+    const weekAt = m.ratingWeekAgoAt
+      ? Date.parse(String(m.ratingWeekAgoAt))
+      : NaN;
+    const patch: Record<string, unknown> = {};
+    if (!Number.isFinite(dayAt) || Date.now() - dayAt > DAY_MS) {
+      patch.ratingDayAgo = rating;
+      patch.ratingDayAgoAt = nowIso;
+    }
+    if (!Number.isFinite(weekAt) || Date.now() - weekAt > WEEK_MS) {
+      patch.ratingWeekAgo = rating;
+      patch.ratingWeekAgoAt = nowIso;
+    }
+    if (Object.keys(patch).length === 0) {
+      continue;
+    }
+    const { error: patchError } = await client
+      .from(CONTENT_TABLE)
+      .update({ metrics: { ...m, ...patch } })
+      .eq("id", row.id);
+    if (patchError) {
+      throw new Error(
+        `refreshMomentumBaselines (patch) failed: ${patchError.message}`,
+      );
+    }
+    patched += 1;
+  }
+  return patched;
+}
+
+/**
+ * When the index was last touched by ANY write path (FID-2026-0905-002
+ * stream B) — powers the "Index updated X ago" stamp on listing pages.
+ * Null only on an empty index.
+ */
+export async function getIndexUpdatedAt(): Promise<Date | null> {
+  const { data, error } = await getServiceClient()
+    .from(CONTENT_TABLE)
+    .select("updated_at")
+    .eq("archived", false)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+  if (error) {
+    throw new Error(`getIndexUpdatedAt failed: ${error.message}`);
+  }
+  const row = (data ?? [])[0] as { updated_at: string } | undefined;
+  return row ? new Date(row.updated_at) : null;
+}
+
 /** Latest items across ALL source types (FID-015, search input set). */
 export async function getLatestContentAllTypes(options: {
   limit: number;
@@ -432,6 +527,25 @@ export async function getRisingContent(options: {
   });
   if (error) {
     throw new Error(`getRisingContent failed: ${error.message}`);
+  }
+  return (data ?? []).map((r: ContentRow) => mapContentRow(r));
+}
+
+/**
+ * Biggest absolute movers over a day window (FID-2026-0905-002 stream C) —
+ * strict gainers only (decay cannot fake a move), ranked by raw delta.
+ * Backs the Rising page's "biggest moves this week" section.
+ */
+export async function getTopMovers(options: {
+  days: number;
+  limit: number;
+}): Promise<ContentItem[]> {
+  const { data, error } = await getServiceClient().rpc("content_top_movers", {
+    p_days: options.days,
+    p_limit: options.limit,
+  });
+  if (error) {
+    throw new Error(`getTopMovers failed: ${error.message}`);
   }
   return (data ?? []).map((r: ContentRow) => mapContentRow(r));
 }

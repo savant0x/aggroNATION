@@ -8,6 +8,13 @@ without one. Dates are UTC.
 
 ### Added
 
+- **Status page, freshness stamps, momentum baselines, cycle alerting** (`FID-2026-0905-002`, `major`): public
+  `/status` engine heartbeat + `/api/status` JSON backed by a new append-only `fetch_cycles` log written every
+  cycle; "Index updated X ago · refreshes hourly" stamp on all listing pages via the shared listing header;
+  Rising retuned to carried day/week momentum baselines (per-cycle deltas proved to be decay-noise — movers
+  collapsed 2→0 across one live cycle; baselines refresh bounded per cycle and age into real movement);
+  the purge webhook response now carries the cycle's failure count so the workflow annotates source failures.
+
 - **Auto-freshness pipeline** (`FID-2026-0905-001`, `major`): the hourly ingestion runner now purges Vercel's ISR
   cache after every fetch via the new `GET /api/cron/purge` webhook (timing-safe Bearer auth, shared
   `isCronAuthorized` helper now owning both cron routes) — production reflects each cycle immediately instead of

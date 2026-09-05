@@ -4,10 +4,12 @@ import { EmptyState } from "@/components/home/EmptyState";
 import { MERGED, PIPELINES } from "@/config/pipelines";
 import {
   countContent,
+  getIndexUpdatedAt,
   getLatestContentDiversified,
   getLatestContentMerged,
   getLatestContentPage,
 } from "@/lib/repositories/content-repo";
+import { relativeTime } from "@/lib/format/relative-time";
 import type { ContentItem, SourceType } from "@/lib/schemas/content";
 
 /**
@@ -96,6 +98,16 @@ export default async function TypeListingPage({
     console.error(`[/${segment}] count failed:`, error);
   }
 
+  // FID-2026-0905-002 stream B: index freshness, from real data. One scalar
+  // read; stamp refreshes via the hourly write-path purge, so its staleness
+  // is bounded by this page's revalidate window (the honest cadence).
+  let indexUpdated: Date | null = null;
+  try {
+    indexUpdated = await getIndexUpdatedAt();
+  } catch (error) {
+    console.error(`[/${segment}] freshness probe failed:`, error);
+  }
+
   const totalPages =
     total !== null && total > 0 ? Math.ceil(total / PAGE_SIZE) : null;
   const base = `/${segment}`;
@@ -119,6 +131,11 @@ export default async function TypeListingPage({
             : `The most recent content from curated sources — ${tagline}.`}{" "}
           Everything opens right here on the site — you never leave.
         </p>
+        {indexUpdated && (
+          <p className="text-xs text-muted">
+            Index updated {relativeTime(indexUpdated)} · refreshes hourly
+          </p>
+        )}
         {/* FID-2026-0904-014: the two-view toggle. Pure links — both views
             are cached route shapes, no JS, no searchParams. */}
         <div className="flex items-center gap-4 text-sm">
