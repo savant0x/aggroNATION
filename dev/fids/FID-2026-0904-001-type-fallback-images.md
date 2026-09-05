@@ -3,7 +3,7 @@
 | Field        | Value |
 | ------------ | ----- |
 | **Filename** | `FID-2026-0904-001-type-fallback-images.md` |
-| **ID**       | 2026-0904-001 |
+| **ID**       | FID-2026-0904-001 |
 | **Severity** | minor |
 | **Status**   | verified |
 | **Created**  | 2026-09-04 |

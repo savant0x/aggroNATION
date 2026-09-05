@@ -3,7 +3,7 @@
 | Field        | Value |
 | ------------ | ----- |
 | **Filename** | `FID-2026-0904-007-source-badge.md` |
-| **ID**       | 2026-0904-007 |
+| **ID**       | FID-2026-0904-007 |
 | **Severity** | minor |
 | **Status**   | verified |
 | **Created**  | 2026-09-04 |

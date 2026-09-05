@@ -3,7 +3,7 @@
 | Field        | Value |
 | ------------ | ----- |
 | **Filename** | `FID-2026-0904-002-navbar-redesign-banner-glow.md` |
-| **ID**       | 2026-0904-002 |
+| **ID**       | FID-2026-0904-002 |
 | **Severity** | minor |
 | **Status**   | verified |
 | **Created**  | 2026-09-04 |

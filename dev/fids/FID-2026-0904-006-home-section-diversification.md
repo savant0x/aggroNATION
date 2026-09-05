@@ -3,7 +3,7 @@
 | Field        | Value |
 | ------------ | ----- |
 | **Filename** | `FID-2026-0904-006-home-section-diversification.md` |
-| **ID**       | 2026-0904-006 |
+| **ID**       | FID-2026-0904-006 |
 | **Severity** | minor |
 | **Status**   | verified |
 | **Created**  | 2026-09-04 |

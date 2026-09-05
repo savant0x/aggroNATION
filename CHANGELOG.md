@@ -8,6 +8,15 @@ without one. Dates are UTC.
 
 ### Added
 
+- **Full-text search, OG cards, Cmd+K, ledger audit** (`FID-2026-0904-022`, `major`):
+  full-text body search via `content_text` + stored `search_tsv` tsvector
+  (GIN-indexed) — "mullvad" now finds the DNS article by its body;
+  generated branded OG cards at `/og` wired into article/watch social
+  metadata (always renders, no remote 429s); ⌘K command palette over the
+  new `/api/search`; 22 Firebase-era 0903 FIDs archived with supersession
+  banners, 0904 metadata drift corrected. Schema note: the migration
+  invalidated the `setof content` read functions — recreated in
+  `20260904230000_recreate_content_functions.sql`.
 - **Slop sweep — wiring debt** (`FID-2026-0904-021`, `major`): real
   server-side search via the pinned `content_search` SQL function (the
   Firestore-era newest-100 in-page filter is gone — queries now cover the

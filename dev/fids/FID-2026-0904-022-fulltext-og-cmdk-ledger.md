@@ -5,7 +5,7 @@
 | **Filename** | `FID-2026-0904-022-fulltext-og-cmdk-ledger.md` |
 | **ID**       | FID-2026-0904-022 |
 | **Severity** | major |
-| **Status**   | converged |
+| **Status**   | closed |
 | **Created**  | 2026-09-05 |
 | **Author**   | Operator: "make a fid for all of this" (full-text body search, OG image generator, Cmd+K palette, 0903 FID ledger audit) |
 
@@ -166,3 +166,41 @@ commit SHAs; CHANGELOG entries for both the features and the archival.
 Will flip to `closed` with: gates output, the full probe matrix locally
 and on production, commit SHAs, CHANGELOG entries, and the archival
 filesystem evidence.
+
+**Verification record (2026-09-05) — closed, all four streams:**
+
+- **Self-correct 1 (schema repair):** the fulltext migration invalidated
+  every existing `returns setof content` SQL function — build-time data
+  fetch failed live with "return type mismatch in function declared to
+  return content" on all home sections and listings. Repair migration
+  `20260904230000_recreate_content_functions.sql` recreates the four
+  functions against the 21-column row shape (`content_capped`'s explicit
+  column list gains `content_text, search_tsv`; the `c.*` functions are
+  recreated verbatim). Post-repair probe: capped selector returns rows;
+  local build + home render with **0 failed sections**.
+- **Self-correct 2 (prediction amended):** the FID predicted the injection
+  shape `' OR 1=1--` returns 0 rows. Actual: 5 rows, no error. Root cause:
+  `plainto_tsquery` neutralizes operators into plain tokens ("or" is a
+  stopword; "1" legitimately matches bodies containing "1") — the security
+  property (parameter binding, no operator execution, bounded) holds; the
+  prediction was wrong, not the code.
+- **A (full-text):** migration applied + recorded; backfill covered **326**
+  rows (corpus grew past the ~103 estimate via cron cycles — estimate
+  amended), 0 remaining NULL; repo probes: `"mullvad"` → 1 (the FID-021
+  known miss, now found via body text), `"sglang"` → 1, "encrypted DNS"
+  → 2; `/api/search?q=mullvad` → 200 with the DNS article; empty q → 200.
+- **B (OG images):** `/og` returns a real 1200×630 PNG (verified by `file`);
+  visual screenshot confirms the branded card; article head renders
+  `og:image → https://aggro-nation.vercel.app/og?title=…&type=rss&meta=…`.
+- **C (palette):** live-browser probe: Ctrl+K opens, "sglang" returns the
+  trendshift hit, Enter navigates to
+  `/article/trendshift_sgl-project_sglang` and closes, Escape closes,
+  toggle re-opens. One lint-driven fix: async-adjacent reset via 0ms timer
+  to satisfy `react-hooks/set-state-in-effect`.
+- **D (ledger):** 22 × 0903 FIDs banner-prepended and `git mv`'d to
+  `dev/fids/archive/` (22 in archive, 0 active); 001–007 `**ID**` fields
+  prefixed (`FID-2026-0904-00X`); 012/013/014/015/017 flipped `converged`
+  → `closed` with production-evidence citations appended.
+- Gates: type-check, lint, build exit 0; `ƒ /api/search` and `ƒ /og`
+  registered; no new warnings.
+- Production probes + commit SHAs appended below.

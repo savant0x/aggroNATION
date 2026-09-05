@@ -5,7 +5,7 @@
 | **Filename** | `FID-2026-0904-017-hn-metadata-template-garbage.md` |
 | **ID**       | FID-2026-0904-017 |
 | **Severity** | major |
-| **Status**   | converged |
+| **Status**   | closed |
 | **Created**  | 2026-09-04 |
 | **Author**   | Operator report: "look @ the rss embeds, these look horrible" — `/article/rss_https___news_ycombinator_com_item_id_49568579` |
 
@@ -123,3 +123,5 @@ production probes post-deploy.
    fallback), **0 failures**. Absent-key upsert semantics mean crons never
    erase backfilled bodies. Post-backfill probes: article renders warm body,
    `/rss` cards carry no template excerpts.
+
+> **Status note (2026-09-05, FID-2026-0904-022 stream D):** flipped `converged` → `closed` — implementation verified in production (commits 282b062, ce48e3a; production article body verified).

@@ -5,7 +5,7 @@
 | **Filename** | `FID-2026-0904-012-production-hardening-isr-completion.md` |
 | **ID**       | FID-2026-0904-012 |
 | **Severity** | major |
-| **Status**   | converged |
+| **Status**   | closed |
 | **Created**  | 2026-09-04 |
 | **Author**   | SCOPE Amendments 28–29 follow-up; production audit 2026-09-04 (`dev/audits/2026-09-04-full-site-audit.md`) |
 
@@ -281,3 +281,5 @@ All six items implemented per spec. Evidence:
 - Perf-loop delta during implementation: the lint gate caught vestigial
   `failed` state after the 404 refactor — resolved by rendering the 500-class
   panel directly from the catch (cleaner than the flag pattern).
+
+> **Status note (2026-09-05, FID-2026-0904-022 stream D):** flipped `converged` → `closed` — implementation verified in production (ISR cache headers probed on production; see dev/audits/2026-09-04-full-site-audit.md).

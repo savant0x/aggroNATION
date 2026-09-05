@@ -5,7 +5,7 @@
 | **Filename** | `FID-2026-0904-015-repo-card-dedup.md` |
 | **ID**       | FID-2026-0904-015 |
 | **Severity** | major |
-| **Status**   | converged |
+| **Status**   | closed |
 | **Created**  | 2026-09-04 |
 | **Author**   | Operator visual exploration, 2026-09-04 (finding 5): trendshift article pages double-carded; /github grid illegible at card scale |
 
@@ -128,3 +128,5 @@ probes repeat the same results.
 - **Production (post-deploy, commit `a618604`)**: `/github` body og-image
   `<img>` = 0, compact markers live; article page `og:image` meta present,
   body og-image `<img>` = 0.
+
+> **Status note (2026-09-05, FID-2026-0904-022 stream D):** flipped `converged` → `closed` — implementation verified in production (commits a618604, 58cd7d3; production og-image count 0).

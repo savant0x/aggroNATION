@@ -8,6 +8,7 @@ import { isMetadataTemplate } from "@/lib/fetchers/rss";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { GitHubRepoCard } from "@/components/article/GitHubRepoCard";
 import { siteConfig } from "@/config/site";
+import { ogImageUrl } from "@/lib/og";
 import type { SourceType } from "@/lib/schemas/content";
 
 // ISR 300s (FID-2026-0904-011): bounds the per-view origin scrape (FID-019/020
@@ -58,7 +59,10 @@ export async function generateMetadata({
     // FID-2026-0904-012 item 2: full social metadata — og:image priority
     // github card → feed thumbnail → site banner; excerpt as description;
     // large card for X/Discord/Slack link previews.
-    const image = item.github?.ogImageUrl ?? item.thumbnailUrl ?? "/banner.jpg";
+    // FID-2026-0904-022 stream B: the generated aggroNATION card replaces
+    // remote thumbnails in social metadata — it always renders (no 429s, no
+    // CSP host churn). The thumbnail stays on-site; this is share-only.
+    const image = ogImageUrl(item);
     const ogUrl = `${siteConfig.url}/article/${itemId}`;
     return {
       title: item.title,

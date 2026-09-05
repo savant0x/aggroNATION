@@ -21,6 +21,7 @@ import { siteConfig } from "@/config/site";
 import { ThemeSwitch } from "@/components/theme-switch";
 import { GithubIcon, SearchIcon } from "@/components/icons";
 import { AuthNav } from "@/components/auth-nav";
+import { CommandPalette } from "@/components/command-palette";
 
 const isActivePath = (pathname: string, href: string): boolean =>
   href === "/"
@@ -49,6 +50,9 @@ export const Navbar = () => {
 
   return (
     <nav className="sticky top-0 z-40 w-full bg-[var(--color-base)]/55 backdrop-blur-xl">
+      {/* FID-2026-0904-022 stream C: ⌘K palette — one instance sitewide;
+          panel content mounts only while open. */}
+      <CommandPalette />
       <header className="mx-auto flex h-14 max-w-[1280px] items-center justify-between gap-6 px-6">
         {/* Brand: live signal dot + lowercase wordmark. No tile, no logo
             box — the favicon owns the mark; the dot owns the story. */}

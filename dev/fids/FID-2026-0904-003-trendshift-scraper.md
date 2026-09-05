@@ -3,7 +3,7 @@
 | Field        | Value |
 | ------------ | ----- |
 | **Filename** | `FID-2026-0904-003-trendshift-scraper.md` |
-| **ID**       | 2026-0904-003 |
+| **ID**       | FID-2026-0904-003 |
 | **Severity** | minor |
 | **Status**   | verified |
 | **Created**  | 2026-09-04 |

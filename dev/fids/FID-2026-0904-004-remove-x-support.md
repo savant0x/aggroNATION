@@ -3,7 +3,7 @@
 | Field        | Value |
 | ------------ | ----- |
 | **Filename** | `FID-2026-0904-004-remove-x-support.md` |
-| **ID**       | 2026-0904-004 |
+| **ID**       | FID-2026-0904-004 |
 | **Severity** | major |
 | **Status**   | verified |
 | **Created**  | 2026-09-04 |

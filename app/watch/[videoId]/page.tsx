@@ -6,6 +6,7 @@ import { getContentById } from "@/lib/repositories/content-repo";
 import { buildContentDocId } from "@/lib/schemas/content";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { siteConfig } from "@/config/site";
+import { ogImageUrl } from "@/lib/og";
 
 // Watch pages share the ISR freshness contract with the grids.
 export const revalidate = 300;
@@ -32,7 +33,8 @@ export async function generateMetadata({
     }
     // FID-2026-0904-012 item 2: YouTube thumbnail as the social image.
     const ogUrl = `${siteConfig.url}/watch/${videoId}`;
-    const image = item.thumbnailUrl ?? "/banner.jpg";
+    // FID-2026-0904-022 stream B: generated card for shares (always renders).
+    const image = ogImageUrl(item);
     return {
       title: item.title,
       description: item.excerpt,

@@ -5,7 +5,7 @@
 | **Filename** | `FID-2026-0904-014-listing-diversification-titles.md` |
 | **ID**       | FID-2026-0904-014 |
 | **Severity** | major |
-| **Status**   | converged |
+| **Status**   | closed |
 | **Created**  | 2026-09-04 |
 | **Author**   | Exploration audit 2026-09-04 (visual/logic pass on production build) |
 
@@ -152,3 +152,5 @@ production repeat of flood/title probes. Ground-truth rule applies.
 - **Production (post-deploy, commit `aa962e7`)**: `/youtube` — Julian Goldie
   SEO **16/20 → 1**, every channel ≤2, 14+ distinct channels visible;
   `Highlights`/`Strict order` toggle live; `/github` title + toggle live.
+
+> **Status note (2026-09-05, FID-2026-0904-022 stream D):** flipped `converged` → `closed` — implementation verified in production (commits aa962e7, 57981d2; production flood probe 1/20).

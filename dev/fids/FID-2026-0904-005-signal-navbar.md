@@ -3,7 +3,7 @@
 | Field        | Value |
 | ------------ | ----- |
 | **Filename** | `FID-2026-0904-005-signal-navbar.md` |
-| **ID**       | 2026-0904-005 |
+| **ID**       | FID-2026-0904-005 |
 | **Severity** | major |
 | **Status**   | verified |
 | **Created**  | 2026-09-04 |

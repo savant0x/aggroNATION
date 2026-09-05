@@ -14,6 +14,7 @@ import "server-only";
 
 import type { GithubRepoData } from "@/lib/fetchers/github-repos";
 import { getServiceClient } from "@/lib/supabase/admin";
+import { htmlToPlainText } from "@/lib/quality/scrubber";
 import { stripLoneSurrogates } from "@/lib/strings";
 import {
   buildContentDocId,
@@ -559,6 +560,11 @@ export async function upsertContentBatch(
     const row = buildUpsertRow(item);
     if (item.contentHtml) {
       row.content_html = item.contentHtml;
+      // FID-2026-0904-022 stream A: plain-text twin feeds the stored
+      // search_tsv generated column (full-text search over bodies, without
+      // ever indexing sanitized-HTML markup tokens). Co-occurs with
+      // content_html in every write, so the bucket key is unchanged.
+      row.content_text = htmlToPlainText(item.contentHtml);
     }
     if (item.github) {
       row.github = item.github;

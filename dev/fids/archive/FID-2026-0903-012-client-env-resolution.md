@@ -1,3 +1,5 @@
+> **[ARCHIVED — SUPERSEDED]** This FID documents the Firebase/Firestore architecture replaced by FID-2026-0904-010 (Supabase migration). Its code paths no longer exist; it is kept for historical record only. The behavioral contract it established survived the migration unless a 0904-series FID explicitly supersedes it.
+
 # FID-012 — Client Firebase Env Resolution (Build-Time Inlining Defect)
 
 | Field        | Value |
