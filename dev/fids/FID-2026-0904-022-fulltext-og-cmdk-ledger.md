@@ -204,3 +204,13 @@ filesystem evidence.
 - Gates: type-check, lint, build exit 0; `ƒ /api/search` and `ƒ /og`
   registered; no new warnings.
 - Production probes + commit SHAs appended below.
+- **Commits:** the implementation landed as a pair — `040070a`
+  (rename-only artifact of a failed pathspec in the first `git add`; the 22
+  archive moves, banners absent) completed by `1ef2f89` (all code + banners
+  + metadata fixes, 47 files, 728 insertions). Together they are the
+  implementation record; the split is noted here for honest archaeology.
+- **Production (aggro-nation.vercel.app, 2026-09-05):**
+  `/api/search?q=mullvad` → 200 with the DNS article (full-text live);
+  `/og?title=…` → 200, verified PNG; article `og:image` →
+  `https://aggro-nation.vercel.app/og?title=…` (generated card); home →
+  200 with **0 failed sections** (function repair holds in production).
