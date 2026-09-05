@@ -31,6 +31,11 @@ const CONTENT_ROUTES = [
   "/github/new",
   "/youtube",
   "/youtube/new",
+  // FID-2026-0904-023 discovery routes (were missing — they self-healed only
+  // at their revalidate windows until FID-2026-0905-001 closed the gap).
+  "/rising",
+  "/digest",
+  "/digest/[date]",
 ] as const;
 
 /**
@@ -49,6 +54,9 @@ const CONTENT_PAGE_ROUTES = [
   "/youtube/page/[page]",
   "/article/[itemId]",
   "/watch/[videoId]",
+  // FID-2026-0904-023 dynamic-segment discovery routes (same gap).
+  "/tags/[tag]",
+  "/repo/[slug]",
 ] as const;
 
 /**
