@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ContentGrid } from "@/components/home/ContentGrid";
 import { EmptyState } from "@/components/home/EmptyState";
+import { MERGED, PIPELINES } from "@/config/pipelines";
 import {
   countContent,
   getLatestContentDiversified,
@@ -29,48 +30,6 @@ export const metadata = {
 /** 4 rows of 5 per page (operator spec, FID-021). */
 const PAGE_SIZE = 20;
 
-const TYPE_LABELS: Record<SourceType, string> = {
-  youtube: "YouTube",
-  rss: "RSS Feeds",
-  reddit: "Reddit",
-  huggingface: "HuggingFace",
-  trendshift: "Trendshift",
-  opensource: "Open Source Projects",
-};
-
-const TYPE_TAGLINES: Record<SourceType, string> = {
-  youtube: "the most recent AI content from curated YouTube channels",
-  rss: "the latest articles from curated RSS feeds",
-  reddit: "the hottest posts from curated subreddits",
-  huggingface: "today's curated AI papers from HuggingFace Daily",
-  trendshift: "the trending open-source repos from Trendshift",
-  opensource:
-    "the newest open-source project discoveries from Open Source Projects",
-};
-const EMPTY_DETAIL: Record<SourceType, string> = {
-  youtube:
-    "Add YouTube channels in the admin dashboard — they're fetched immediately.",
-  rss: "Add RSS feeds in the admin dashboard — they're fetched immediately.",
-  reddit:
-    "Add subreddit sources in the admin dashboard — they're fetched immediately via reddit's official feeds.",
-  huggingface:
-    "Add a HuggingFace source (https://huggingface.co/papers) in the admin dashboard — daily papers fetch immediately.",
-  trendshift:
-    "Add a Trendshift source (https://trendshift.io/?sort=views) in the admin dashboard — trending repos fetch immediately.",
-  opensource:
-    "Add an Open Source Projects source (https://www.opensourceprojects.dev/rss) in the admin dashboard — project discoveries fetch immediately.",
-};
-
-/** Merged category meta (FID-2026-0904-009) — the GitHub page combines
- *  opensource + trendshift. Keyed by URL segment. */
-const MERGED_META: Record<string, { label: string; tagline: string }> = {
-  github: {
-    label: "GitHub",
-    tagline:
-      "the trending and newly-discovered open-source repositories from Trendshift and Open Source Projects",
-  },
-};
-
 export interface TypeListingPageProps {
   /** Single source type, OR sourceTypes for a merged category. */
   sourceType?: SourceType;
@@ -96,9 +55,10 @@ export default async function TypeListingPage({
 }: TypeListingPageProps) {
   const types = sourceTypes ?? (sourceType ? [sourceType] : []);
   const isMerged = Boolean(sourceTypes && sourceTypes.length > 1);
-  const merged = isMerged ? MERGED_META[segment] : undefined;
-  const label = merged?.label ?? TYPE_LABELS[sourceType!];
-  const tagline = merged?.tagline ?? TYPE_TAGLINES[sourceType!];
+  const merged = isMerged ? MERGED[segment] : undefined;
+  const pipeline = sourceType ? PIPELINES[sourceType] : undefined;
+  const label = merged?.label ?? pipeline?.label ?? segment;
+  const tagline = merged?.tagline ?? pipeline?.tagline ?? "";
 
   let items: ContentItem[] = [];
   let failed = false;
@@ -248,8 +208,8 @@ export default async function TypeListingPage({
             failed
               ? "The content query failed — check server logs. Nothing is faked in the meantime."
               : merged
-                ? `Add a Trendshift or Open Source Projects source in the admin dashboard — they fetch immediately.`
-                : EMPTY_DETAIL[sourceType!]
+                ? "Add a Trendshift or Open Source Projects source in the admin dashboard — they fetch immediately."
+                : pipeline?.emptyDetail
           }
         />
       )}

@@ -165,9 +165,9 @@ export const Navbar = () => {
                 </li>
               );
             })}
-            <ul className="flex items-center gap-4 pt-4">
+            <div className="flex items-center gap-4 pt-4">
               <AuthNav />
-            </ul>
+            </div>
           </ul>
         </div>
       )}

@@ -1,8 +1,9 @@
 /**
- * Session refresh middleware (FID-2026-0904-010) — the @supabase/ssr
- * canonical pattern. Runs before every matched request: if the access token
- * is near expiry it silently refreshes from the refresh-token cookie and
- * writes the fresh pair back, so server components always read a valid
+ * Session refresh proxy (FID-2026-0904-010; renamed from middleware.ts per
+ * FID-2026-0904-021 — Next.js 16 deprecated the middleware file convention,
+ * the logic is unchanged). Runs before every matched request: if the access
+ * token is near expiry it silently refreshes from the refresh-token cookie
+ * and writes the fresh pair back, so server components always read a valid
  * session without being able to write cookies themselves.
  */
 
@@ -11,7 +12,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/env";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {

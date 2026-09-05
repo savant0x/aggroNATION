@@ -1,53 +1,43 @@
+import type { Metadata } from "next";
 import { ContentGrid } from "@/components/home/ContentGrid";
-import { getLatestContentAllTypes } from "@/lib/repositories/content-repo";
+import { SEARCH_LIMIT, searchContent } from "@/lib/repositories/content-repo";
 import type { ContentItem } from "@/lib/schemas/content";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Search",
+  // Query URLs are unbounded permutations — keep crawlers on /search itself.
+  robots: { index: false, follow: true },
 };
-
-const SEARCH_WINDOW = 100;
 
 interface SearchPageProps {
   searchParams: Promise<{ q?: string }>;
 }
 
 /**
- * Search (FID-015): Firestore has no native full-text search, so the query
- * loads the most recent window (100) and filters in-page by case-insensitive
- * substring across title / author / tags, best-rated first. Honest about the
- * window — a real search index (Typesense/Algolia) is the scaling upgrade.
+ * Search (rewritten FID-2026-0904-021): the Firestore-era newest-100
+ * in-page filter is gone — queries run server-side across the entire
+ * index (title / excerpt / author / tags, ilike), newest first, bounded
+ * at SEARCH_LIMIT. Honest states for no query, no results, and query
+ * failure; nothing is faked in between.
  */
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const { q } = await searchParams;
-  const query = (q ?? "").trim().toLowerCase();
+  const query = (q ?? "").trim();
 
-  let pool: ContentItem[] = [];
+  let results: ContentItem[] = [];
   let failed = false;
-  try {
-    pool = await getLatestContentAllTypes({ limit: SEARCH_WINDOW });
-  } catch (error) {
-    console.error("[/search] load failed:", error);
-    failed = true;
+  if (query.length > 0) {
+    try {
+      results = await searchContent({ query, limit: SEARCH_LIMIT });
+    } catch (error) {
+      console.error("[/search] query failed:", error);
+      failed = true;
+    }
   }
 
-  const results = query
-    ? pool
-        .filter((item) => {
-          const haystack = [
-            item.title,
-            item.author,
-            item.excerpt,
-            item.tags.join(" "),
-          ]
-            .join(" ")
-            .toLowerCase();
-          return haystack.includes(query);
-        })
-        .sort((a, b) => b.metrics.rating - a.metrics.rating)
-    : [];
+  const hasQuery = query.length > 0;
 
   return (
     <div className="flex flex-col gap-6 pb-20 pt-8">
@@ -56,9 +46,13 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           Search
         </h1>
         <p className="max-w-2xl text-muted">
-          {query
-            ? `${results.length} result${results.length === 1 ? "" : "s"} for “${q}” across the ${pool.length} most recent items.`
-            : `Search titles, authors, and tags across the ${pool.length} most recent items.`}
+          {failed
+            ? "The search query failed — check server logs. Nothing is faked."
+            : hasQuery
+              ? results.length > 0
+                ? `${results.length} result${results.length === 1 ? "" : "s"} for “${query}” across the entire index${results.length === SEARCH_LIMIT ? ` (showing the first ${SEARCH_LIMIT})` : ""}.`
+                : `Nothing matched “${query}”.`
+              : "Search titles, descriptions, authors, and tags across the entire index."}
         </p>
       </header>
 
@@ -66,7 +60,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         <input
           type="search"
           name="q"
-          defaultValue={q ?? ""}
+          defaultValue={query}
           placeholder="Search content…"
           aria-label="Search content"
           className="h-11 w-full max-w-xl rounded-xl border border-[var(--color-edge)] bg-[var(--color-surface)] px-4 text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)] focus-visible:border-[var(--color-accent)]"
@@ -81,16 +75,16 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
       {failed ? (
         <p role="alert" className="text-sm text-red-400">
-          The content query failed — check server logs. Nothing is faked.
+          The search query failed — check server logs. Nothing is faked.
         </p>
-      ) : query && results.length === 0 ? (
+      ) : hasQuery && results.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-[var(--color-edge)] px-6 py-12 text-center">
           <p className="text-lg font-medium text-[var(--color-text-muted)]">
-            Nothing matched “{q}”
+            Nothing matched “{query}”
           </p>
           <p className="mt-1 text-sm text-muted">
-            The search covers the {SEARCH_WINDOW} most recent items — older
-            content exists but isn&apos;t in the search window yet.
+            The search covers every item in the index — try fewer or shorter
+            words.
           </p>
         </div>
       ) : results.length > 0 ? (

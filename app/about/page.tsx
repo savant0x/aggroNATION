@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { siteConfig } from "@/config/site";
+import { PIPELINES } from "@/config/pipelines";
 import { getAllSources } from "@/lib/repositories/source-repo";
 import { countContent } from "@/lib/repositories/content-repo";
 import { relativeTime } from "@/lib/format/relative-time";
@@ -13,45 +14,14 @@ export const metadata = {
 };
 
 /**
- * Pipeline catalog, exhaustive over SourceType — a new type cannot ship
- * without declaring its copy here (same pattern as TYPE_FALLBACK_IMAGE).
- * Status is NOT part of this record: it is computed from the live source
- * table below, so this page can never claim a pipeline is healthy when it
- * is not (the honest no-fake law applies to marketing copy too — the old
- * hardcoded list claimed X (Twitter) was live after FID-2026-0904-004
- * removed it).
+ * Pipeline copy lives in `config/pipelines.ts` (FID-2026-0904-021) — the
+ * single source of truth shared with the listing pages, asserted at module
+ * load against SOURCE_TYPES. Status is NOT part of that record: it is
+ * computed from the live source table below, so this page can never claim a
+ * pipeline is healthy when it is not (the honest no-fake law applies to
+ * marketing copy too — the old hardcoded list claimed X (Twitter) was live
+ * after FID-2026-0904-004 removed it).
  */
-const PIPELINES: Record<SourceType, { name: string; detail: string }> = {
-  youtube: {
-    name: "YouTube",
-    detail:
-      "Curated channels via the YouTube Data API — videos play on-site, never off-site.",
-  },
-  rss: {
-    name: "RSS",
-    detail:
-      "Feed parsing with the publisher's own full-text body rendered in the in-site reader.",
-  },
-  reddit: {
-    name: "Reddit",
-    detail:
-      "Subreddit hot posts via reddit's official feeds, read on-site with no exits.",
-  },
-  huggingface: {
-    name: "HuggingFace",
-    detail: "Daily Papers with community upvotes feeding the ranking.",
-  },
-  trendshift: {
-    name: "Trendshift",
-    detail:
-      "Trending open-source repos from trendshift.io, enriched with live GitHub repo cards. Surfaced together with discoveries in the GitHub section.",
-  },
-  opensource: {
-    name: "Open Source Projects",
-    detail:
-      "Newly-discovered projects from opensourceprojects.dev, enriched with GitHub repo cards. Surfaced together with trendshift in the GitHub section.",
-  },
-};
 
 interface PipelineStatus {
   type: SourceType;
@@ -159,7 +129,7 @@ export default async function AboutPage() {
                     className="flex items-center justify-between gap-3 rounded-xl border border-[var(--color-edge)] bg-[var(--color-raised)] px-4 py-2.5 text-sm"
                   >
                     <span className="font-medium">
-                      {PIPELINES[p.type].name}
+                      {PIPELINES[p.type].label}
                     </span>
                     <span className="flex items-center gap-2 text-xs text-muted">
                       {p.enabled > 0
@@ -221,7 +191,7 @@ export default async function AboutPage() {
               key={type}
               className="flex flex-col gap-0.5 rounded-xl border border-[var(--color-edge)] bg-[var(--color-raised)] px-4 py-3"
             >
-              <span className="font-medium">{PIPELINES[type].name}</span>
+              <span className="font-medium">{PIPELINES[type].label}</span>
               <span className="text-sm text-muted">
                 {PIPELINES[type].detail}
               </span>

@@ -359,6 +359,36 @@ export async function getLatestContentAllTypes(options: {
   return (data ?? []).map((r: ContentRow) => mapContentRow(r));
 }
 
+/** Search result ceiling — a query page, not an export; bounded is honest. */
+export const SEARCH_LIMIT = 200;
+
+/**
+ * Server-side search (FID-2026-0904-021) — replaces the Firestore-era
+ * newest-100 in-page filter. Case-insensitive substring match across
+ * title / excerpt / author / source_name / tags, newest first, bounded via
+ * the pinned `content_search` SQL function (the or-list parser cannot
+ * express the tags jsonb::text cast — probed live, see the migration).
+ * The pattern is parameter-bound; the repository sanitizes the token so it
+ * cannot inject list syntax, wildcards, or parens into the ilike.
+ */
+export async function searchContent(options: {
+  query: string;
+  limit: number;
+}): Promise<ContentItem[]> {
+  const sanitized = options.query.replace(/[%(),\\]/g, " ").trim();
+  if (sanitized.length === 0) {
+    return [];
+  }
+  const { data, error } = await getServiceClient().rpc("content_search", {
+    p_query: `%${sanitized}%`,
+    p_limit: options.limit,
+  });
+  if (error) {
+    throw new Error(`searchContent failed: ${error.message}`);
+  }
+  return (data ?? []).map((r: ContentRow) => mapContentRow(r as ContentRow));
+}
+
 /**
  * The Briefing (FID-2026-0904-019): per-category top items for one UTC date,
  * ranked by the fetch-time rating snapshot. Derived on demand — no digest

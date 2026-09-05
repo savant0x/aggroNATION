@@ -74,7 +74,8 @@ export function AuthNav() {
 
   if (!probed) {
     // Brief neutral placeholder until the probe resolves (first paint only).
-    return <div aria-hidden className="h-6 w-16" />;
+    // li (not div): this renders inside a <ul> — keep the DOM valid.
+    return <li aria-hidden className="h-6 w-16" />;
   }
 
   if (!user) {
