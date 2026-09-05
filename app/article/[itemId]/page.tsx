@@ -7,6 +7,11 @@ import { fetchArticle } from "@/lib/fetchers/article";
 import { isMetadataTemplate } from "@/lib/fetchers/rss";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { GitHubRepoCard } from "@/components/article/GitHubRepoCard";
+import { SaveButton } from "@/components/engagement/SaveButton";
+import { ReactionBar } from "@/components/engagement/ReactionBar";
+import { ShareButton } from "@/components/engagement/ShareButton";
+import { ReadingProgress } from "@/components/engagement/ReadingProgress";
+import { RelatedItems } from "@/components/article/RelatedItems";
 import { siteConfig } from "@/config/site";
 import { ogImageUrl } from "@/lib/og";
 import type { SourceType } from "@/lib/schemas/content";
@@ -130,6 +135,17 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   // The publisher syndicated the body for exactly this purpose; scraping is
   // the fallback, not the primary source.
   let bodyHtml: string | null = item.contentHtml ?? null;
+  // FID-2026-0904-023 stream E: reading time from the plain-text twin when
+  // present, else derived from the sanitized body length heuristically.
+  const readingMinutes =
+    bodyHtml !== null
+      ? Math.max(
+          1,
+          Math.round(
+            bodyHtml.replace(/<[^>]+>/g, " ").split(/\s+/).length / 220,
+          ),
+        )
+      : null;
   let source = bodyHtml ? "feed" : null;
   let scrapeError: string | null = null;
 
@@ -158,6 +174,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 pb-20 pt-8">
+      <ReadingProgress />
       <header className="flex flex-col gap-2">
         <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold leading-snug md:text-3xl">
           {item.title}
@@ -173,17 +190,23 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             : item.sourceType === "opensource"
               ? "Open Source Projects"
               : item.sourceType}
+          {readingMinutes !== null && ` · ${readingMinutes} min read`}
         </p>
-        {item.url && (
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex w-fit items-center gap-1.5 text-sm text-[var(--color-accent-bright)] transition-opacity hover:opacity-80"
-          >
-            Open original ↗
-          </a>
-        )}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <SaveButton contentId={item.id} />
+          <ReactionBar contentId={item.id} />
+          <ShareButton title={item.title} path={`/article/${item.id}`} />
+          {item.url && (
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-8 items-center rounded-full border border-[var(--color-edge)] px-4 text-xs text-muted transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-text-primary)]"
+            >
+              Open original ↗
+            </a>
+          )}
+        </div>
       </header>
 
       {item.github && <GitHubRepoCard github={item.github} />}
@@ -213,6 +236,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
         </p>
       )}
 
+      <RelatedItems contentId={item.id} currentPath={`/article/${item.id}`} />
       <CommentSection contentId={item.id} />
     </div>
   );

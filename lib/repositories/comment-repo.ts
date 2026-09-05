@@ -17,6 +17,7 @@ interface CommentRow {
   user_id: string;
   user_email: string;
   body: string;
+  parent_id: string | null;
   archived: boolean;
   created_at: string;
 }
@@ -28,6 +29,7 @@ function mapCommentRow(row: CommentRow): Comment {
     userId: row.user_id,
     userEmail: row.user_email,
     body: row.body,
+    parentId: row.parent_id,
     archived: row.archived,
     createdAt: new Date(row.created_at),
   });
@@ -55,6 +57,8 @@ export interface CreateCommentInput {
   userId: string;
   userEmail: string;
   body: string;
+  /** Parent comment id for replies (stream B). */
+  parentId?: string | null;
 }
 
 export async function createComment(
@@ -67,6 +71,7 @@ export async function createComment(
     userId: input.userId,
     userEmail: input.userEmail,
     body: input.body.trim(),
+    parentId: input.parentId ?? null,
     archived: false,
     createdAt: new Date(),
   });
@@ -78,6 +83,7 @@ export async function createComment(
       user_id: parsed.userId,
       user_email: parsed.userEmail,
       body: parsed.body,
+      parent_id: parsed.parentId,
       archived: false,
       created_at: parsed.createdAt.toISOString(),
     })

@@ -1,0 +1,16 @@
+{
+  "name": "aggroNATION",
+  "short_name": "aggroNATION",
+  "description": "Intelligent AI content aggregator — YouTube, RSS, Reddit, HuggingFace and GitHub repos, fetched automatically and ranked by engagement.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a12",
+  "theme_color": "#8b5cf6",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}

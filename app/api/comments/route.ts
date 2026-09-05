@@ -9,7 +9,11 @@ import { z } from "zod";
 
 import { getCurrentUser } from "@/lib/auth/session";
 import { getContentById } from "@/lib/repositories/content-repo";
-import { createComment, listComments } from "@/lib/repositories/comment-repo";
+import {
+  createComment,
+  getCommentById,
+  listComments,
+} from "@/lib/repositories/comment-repo";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +22,8 @@ const LIST_LIMIT = 100;
 const createSchema = z.object({
   contentId: z.string().min(1).max(200),
   body: z.string().min(1).max(2000),
+  /** Optional parent — must be a comment on the same content item. */
+  parentId: z.string().min(1).max(200).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -76,11 +82,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Content not found" }, { status: 404 });
     }
 
+    // Stream B: validate the parent belongs to the same content item, and
+    // flatten reply-to-reply to its ancestor (one display level).
+    let parentId: string | null = null;
+    if (parsed.data.parentId) {
+      const parent = await getCommentById(parsed.data.parentId);
+      if (
+        !parent ||
+        parent.archived ||
+        parent.contentId !== parsed.data.contentId
+      ) {
+        return NextResponse.json(
+          { error: "Parent comment not found on this item" },
+          { status: 404 },
+        );
+      }
+      parentId = parent.parentId ?? parent.id;
+    }
+
     const comment = await createComment({
       contentId: parsed.data.contentId,
       userId: user.uid,
       userEmail: user.email ?? "unknown@aggronation.local",
       body: parsed.data.body,
+      parentId,
     });
 
     return NextResponse.json({ comment }, { status: 201 });

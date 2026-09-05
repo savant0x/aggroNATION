@@ -363,6 +363,129 @@ export async function getLatestContentAllTypes(options: {
 /** Search result ceiling — a query page, not an export; bounded is honest. */
 export const SEARCH_LIMIT = 200;
 
+/** Related items (FID-2026-0904-023 stream D): same type, tag-overlap first. */
+export async function getRelatedContent(options: {
+  contentId: string;
+  limit: number;
+}): Promise<ContentItem[]> {
+  const { data, error } = await getServiceClient().rpc("content_related", {
+    p_content_id: options.contentId,
+    p_limit: options.limit,
+  });
+  if (error) {
+    throw new Error(`getRelatedContent failed: ${error.message}`);
+  }
+  return (data ?? []).map((r: ContentRow) => mapContentRow(r));
+}
+
+/** Tag listing (stream G) + count for pagination. */
+export async function getContentByTag(options: {
+  tag: string;
+  limit: number;
+  offset: number;
+}): Promise<ContentItem[]> {
+  const { data, error } = await getServiceClient().rpc("content_by_tag", {
+    p_tag: options.tag,
+    p_limit: options.limit,
+    p_offset: options.offset,
+  });
+  if (error) {
+    throw new Error(`getContentByTag failed: ${error.message}`);
+  }
+  return (data ?? []).map((r: ContentRow) => mapContentRow(r));
+}
+
+export async function countContentByTag(tag: string): Promise<number> {
+  const { data, error } = await getServiceClient().rpc("content_count_by_tag", {
+    p_tag: tag,
+  });
+  if (error) {
+    throw new Error(`countContentByTag failed: ${error.message}`);
+  }
+  return Number(data ?? 0);
+}
+
+/** Top tags sitewide (sitemap + discovery surfaces). */
+export async function getTopTags(options: {
+  limit: number;
+}): Promise<Array<{ tag: string; items: number }>> {
+  const { data, error } = await getServiceClient().rpc("top_tags", {
+    p_limit: options.limit,
+  });
+  if (error) {
+    throw new Error(`getTopTags failed: ${error.message}`);
+  }
+  return (data ?? []).map((r: { tag: string; items: number | string }) => ({
+    tag: r.tag as string,
+    items: Number(r.items ?? 0),
+  }));
+}
+
+/** Rising items (stream H) — rating grew since the previous fetch cycle. */
+export async function getRisingContent(options: {
+  lookbackHours: number;
+  limit: number;
+}): Promise<ContentItem[]> {
+  const { data, error } = await getServiceClient().rpc("content_rising", {
+    p_lookback_hours: options.lookbackHours,
+    p_limit: options.limit,
+  });
+  if (error) {
+    throw new Error(`getRisingContent failed: ${error.message}`);
+  }
+  return (data ?? []).map((r: ContentRow) => mapContentRow(r));
+}
+
+/** Every item mentioning one repo (stream J). */
+export async function getContentRepoItems(options: {
+  slug: string;
+  limit: number;
+}): Promise<ContentItem[]> {
+  const { data, error } = await getServiceClient().rpc("content_repo_items", {
+    p_slug: options.slug,
+    p_limit: options.limit,
+  });
+  if (error) {
+    throw new Error(`getContentRepoItems failed: ${error.message}`);
+  }
+  return (data ?? []).map((r: ContentRow) => mapContentRow(r));
+}
+
+/** Time machine (stream K): top items from one UTC day-window. */
+export async function getTimeMachineContent(options: {
+  dayStart: Date;
+  dayEnd: Date;
+  limit: number;
+}): Promise<ContentItem[]> {
+  const { data, error } = await getServiceClient().rpc("content_time_machine", {
+    p_day_start: options.dayStart.toISOString(),
+    p_day_end: options.dayEnd.toISOString(),
+    p_limit: options.limit,
+  });
+  if (error) {
+    throw new Error(`getTimeMachineContent failed: ${error.message}`);
+  }
+  return (data ?? []).map((r: ContentRow) => mapContentRow(r));
+}
+
+/**
+ * Time machine, "one week ago" flavor — the day-window is computed inside
+ * Postgres (`now() - interval '7 days'`) so callers never read the clock
+ * during render (the purity rule rejected the component-side version).
+ */
+export async function getTimeMachineWeek(options: {
+  limit: number;
+}): Promise<ContentItem[]> {
+  const { data, error } = await getServiceClient().rpc(
+    "content_time_machine_week",
+    { p_limit: options.limit },
+  );
+  if (error) {
+    throw new Error(`getTimeMachineWeek failed: ${error.message}`);
+  }
+  return (data ?? []).map((r: ContentRow) => mapContentRow(r));
+}
+
 /**
  * Server-side search (FID-2026-0904-021) — replaces the Firestore-era
  * newest-100 in-page filter. Case-insensitive substring match across
@@ -470,6 +593,9 @@ export interface UpsertContentInput {
     likes: number;
     comments: number;
     rating: number;
+    /** FID-2026-0904-023 stream H: rating at the previous fetch cycle —
+     *  momentum measurement. Absent on first sight (seeded to rating). */
+    prevRating?: number;
   };
   /**
    * Original creation time (data migration only). Upserts omit it — the
@@ -524,7 +650,14 @@ function buildUpsertRow(item: UpsertContentInput): UpsertRow {
     author: stripLoneSurrogates(item.author),
     published_at: item.publishedAt.toISOString(),
     tags: item.tags.map((tag) => stripLoneSurrogates(tag)),
-    metrics: item.metrics,
+    metrics: {
+      ...item.metrics,
+      // Stream H momentum: prev_rating MUST be the stored previous-cycle
+      // value (resolved by the batch read in upsertContentBatch) — seeding
+      // it to the new rating every write would zero every delta and Rising
+      // would never populate. First sight → seed to current (delta 0).
+      prev_rating: item.metrics.prevRating ?? item.metrics.rating,
+    },
     featured: false,
     archived: false,
     updated_at: new Date().toISOString(),
@@ -555,9 +688,41 @@ export async function upsertContentBatch(
     return 0;
   }
 
+  // Stream H momentum: resolve each incoming row's STORED rating (one
+  // bounded indexed read per upsert call — chunks of 500 like the writes)
+  // so prev_rating carries the real previous-cycle value. Items not yet
+  // stored have no previous — buildUpsertRow seeds them to current.
+  const docIds = items.map((item) =>
+    buildContentDocId(item.sourceType, item.externalId),
+  );
+  const previousRatings = new Map<string, number>();
+  for (let offset = 0; offset < docIds.length; offset += MAX_BATCH_SIZE) {
+    const chunk = docIds.slice(offset, offset + MAX_BATCH_SIZE);
+    const { data, error } = await getServiceClient()
+      .from(CONTENT_TABLE)
+      .select("id, metrics->>rating")
+      .in("id", chunk);
+    if (error) {
+      throw new Error(
+        `upsertContentBatch (prev read) failed: ${error.message}`,
+      );
+    }
+    for (const row of data ?? []) {
+      const value = (row as { id: string; rating: string | null }).rating;
+      if (value !== null) {
+        previousRatings.set((row as { id: string }).id, Number(value));
+      }
+    }
+  }
+
   const buckets = new Map<string, UpsertRow[]>();
   for (const item of items) {
-    const row = buildUpsertRow(item);
+    const docId = buildContentDocId(item.sourceType, item.externalId);
+    const stored = previousRatings.get(docId);
+    const resolved: UpsertContentInput = stored
+      ? { ...item, metrics: { ...item.metrics, prevRating: stored } }
+      : item;
+    const row = buildUpsertRow(resolved);
     if (item.contentHtml) {
       row.content_html = item.contentHtml;
       // FID-2026-0904-022 stream A: plain-text twin feeds the stored

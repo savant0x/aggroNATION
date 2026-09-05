@@ -61,8 +61,8 @@ export function ContentCard({ item }: ContentCardProps) {
 
         <h3 className="line-clamp-2 font-[family-name:var(--font-display)] font-semibold leading-snug">
           <Link
-            href={readerHref}
-            aria-label={`Read about ${item.github.slug} on aggronation`}
+            href={`/repo/${item.github.slug.replace("/", "--")}`}
+            aria-label={`Open the ${item.github.slug} repository page on aggronation`}
             className="text-[var(--color-text-primary)] outline-none transition-colors hover:text-[var(--color-accent-bright)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
           >
             {item.github.slug}
@@ -82,12 +82,13 @@ export function ContentCard({ item }: ContentCardProps) {
               </span>
             )}
             {item.github.topics.slice(0, 2).map((topic) => (
-              <span
+              <Link
                 key={topic}
-                className="rounded-full border border-[var(--color-edge)] px-2 py-0.5 text-muted"
+                href={`/tags/${encodeURIComponent(topic)}`}
+                className="rounded-full border border-[var(--color-edge)] px-2 py-0.5 text-muted transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-text-primary)]"
               >
                 #{topic}
-              </span>
+              </Link>
             ))}
           </div>
           <div className="flex items-center justify-between gap-2">
@@ -164,6 +165,20 @@ export function ContentCard({ item }: ContentCardProps) {
           )}
         </h3>
         <p className="line-clamp-2 text-sm text-muted">{item.excerpt}</p>
+
+        {item.tags.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            {item.tags.slice(0, 3).map((tag) => (
+              <Link
+                key={tag}
+                href={`/tags/${encodeURIComponent(tag)}`}
+                className="rounded-full border border-[var(--color-edge)] px-2 py-0.5 text-muted transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-text-primary)]"
+              >
+                #{tag}
+              </Link>
+            ))}
+          </div>
+        )}
 
         <div className="mt-auto flex flex-col gap-2 pt-2">
           <div className="flex items-center justify-between gap-2">

@@ -5,6 +5,7 @@ import {
   getLatestContentAllTypes,
   countContent,
   getRecentContentDays,
+  getTopTags,
 } from "@/lib/repositories/content-repo";
 import type { SourceType } from "@/lib/schemas/content";
 
@@ -62,6 +63,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
       priority: 0.8,
     },
+    {
+      url: `${siteConfig.url}/rising`,
+      lastModified: now,
+      priority: 0.7,
+    },
   ];
 
   try {
@@ -102,6 +108,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     }));
 
+    // Tag/topic pages (FID-2026-0904-023 stream G): the top 50 tags get
+    // crawlable listings — free topic surface from data that already exists.
+    const topTags = await getTopTags({ limit: 50 }).catch(() => []);
+    const tagEntries: MetadataRoute.Sitemap = topTags.map(({ tag }) => ({
+      url: `${siteConfig.url}/tags/${encodeURIComponent(tag)}`,
+      lastModified: now,
+      priority: 0.5,
+    }));
+
     const items = await getLatestContentAllTypes({ limit: ALL_TYPES_LIMIT });
     const itemEntries: MetadataRoute.Sitemap = items.map((item) => ({
       url:
@@ -116,6 +131,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ...staticEntries,
       ...listingPageEntries,
       ...digestEntries,
+      ...tagEntries,
       ...itemEntries,
     ];
   } catch (error) {

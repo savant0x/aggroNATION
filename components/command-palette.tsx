@@ -81,8 +81,11 @@ export function CommandPalette() {
       }, 0);
       return;
     }
-    setLoading(true);
     debounceRef.current = setTimeout(async () => {
+      // Set loading inside the timer (react-hooks/set-state-in-effect):
+      // synchronous setLoading in the effect body cascades renders per
+      // keystroke; inside the debounce it fires once per settled query.
+      setLoading(true);
       try {
         const response = await fetch(
           `/api/search?q=${encodeURIComponent(trimmed)}`,

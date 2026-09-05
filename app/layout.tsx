@@ -7,6 +7,7 @@ import { Providers } from "./providers";
 import { siteConfig } from "@/config/site";
 import { fontSans, fontDisplay } from "@/config/fonts";
 import { Navbar } from "@/components/navbar";
+import { ServiceWorkerRegister } from "@/components/sw-register";
 
 export const metadata: Metadata = {
   // FID-2026-0904-012 item 2: absolute-URL base + sitewide og/twitter
@@ -37,6 +38,7 @@ export const metadata: Metadata = {
       { url: "/favicon.ico", sizes: "32x32" },
     ],
   },
+  manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {
@@ -90,6 +92,7 @@ export default function RootLayout({
             </footer>
           </div>
         </Providers>
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

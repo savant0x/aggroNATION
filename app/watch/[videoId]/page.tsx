@@ -5,6 +5,10 @@ import { notFound } from "next/navigation";
 import { getContentById } from "@/lib/repositories/content-repo";
 import { buildContentDocId } from "@/lib/schemas/content";
 import { CommentSection } from "@/components/comments/CommentSection";
+import { SaveButton } from "@/components/engagement/SaveButton";
+import { ReactionBar } from "@/components/engagement/ReactionBar";
+import { ShareButton } from "@/components/engagement/ShareButton";
+import { RelatedItems } from "@/components/article/RelatedItems";
 import { siteConfig } from "@/config/site";
 import { ogImageUrl } from "@/lib/og";
 
@@ -112,6 +116,11 @@ export default async function WatchPage({ params }: WatchPageProps) {
           {item.metrics.likes.toLocaleString("en")} likes ·{" "}
           {item.metrics.comments.toLocaleString("en")} comments on YouTube
         </p>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <SaveButton contentId={item.id} />
+          <ReactionBar contentId={item.id} />
+          <ShareButton title={item.title} path={`/watch/${videoId}`} />
+        </div>
       </div>
 
       {item.excerpt && (
@@ -125,6 +134,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
         </section>
       )}
 
+      <RelatedItems contentId={item.id} currentPath={`/watch/${videoId}`} />
       <CommentSection contentId={contentId} />
     </div>
   );

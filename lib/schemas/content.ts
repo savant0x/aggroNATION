@@ -154,6 +154,9 @@ export const commentSchema = z.object({
   userId: z.string().min(1),
   userEmail: z.string().email(),
   body: z.string().min(1).max(2000),
+  /** FID-2026-0904-023 stream B: parent comment for replies (one display
+   *  level — a reply to a reply flattens to its ancestor at write time). */
+  parentId: z.string().min(1).nullable().default(null),
   archived: z.boolean().default(false),
   createdAt: z.date(),
 });

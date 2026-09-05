@@ -1,5 +1,6 @@
 import { HeroSection } from "@/components/home/HeroSection";
 import { SectionHeader } from "@/components/home/SectionHeader";
+import { TimeMachineStrip } from "@/components/home/TimeMachineStrip";
 import { ContentGrid } from "@/components/home/ContentGrid";
 import { EmptyState } from "@/components/home/EmptyState";
 import {
@@ -164,6 +165,8 @@ export default async function Home() {
           )}
         </section>
       ))}
+
+      <TimeMachineStrip />
     </div>
   );
 }

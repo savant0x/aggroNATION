@@ -6,13 +6,19 @@ import { SOURCE_TYPES, type ContentItem } from "@/lib/schemas/content";
 import { siteConfig } from "@/config/site";
 
 /**
- * Outbound briefing feed (FID-2026-0904-019): /digest/feed.xml — an RSS 2.0
- * feed where each item is a daily briefing (one per UTC day that has
- * content, newest 14 days). Others subscribe to aggroNATION.
+ * Outbound briefing feed (FID-2026-0904-019; params per FID-2026-0904-023
+ * stream L): /digest/feed.xml — an RSS 2.0 feed where each item is a daily
+ * briefing (one per UTC day that has content, newest 14 days). Others
+ * subscribe to aggroNATION.
+ *
+ * Stream L: `?type=` filters to one source type and `?days=` shortens the
+ * window (1–30) so power users can subscribe to exactly their slice
+ * (`/digest/feed.xml?type=github&days=7`). The route is dynamic — feed
+ * readers are the audience, responses carry CDN s-maxage, and the schema
+ * surfaces are never exposed to crawlers.
  */
 
-export const revalidate = 3600;
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 const MAX_DAYS_IN_FEED = 14;
 const PER_CATEGORY = 5;
@@ -26,9 +32,20 @@ function escapeXml(text: string): string {
     .replace(/'/g, "&apos;");
 }
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const typeParam = url.searchParams.get("type");
+  const sourceType = SOURCE_TYPES.includes(typeParam as never)
+    ? (typeParam as (typeof SOURCE_TYPES)[number])
+    : null;
+  const daysParam = Number(url.searchParams.get("days"));
+  const lookbackDays =
+    Number.isFinite(daysParam) && daysParam >= 1 && daysParam <= 30
+      ? Math.floor(daysParam)
+      : 30;
+
   const days = (
-    await getRecentContentDays({ lookbackDays: 30 }).catch(() => [] as string[])
+    await getRecentContentDays({ lookbackDays }).catch(() => [] as string[])
   ).slice(0, MAX_DAYS_IN_FEED);
 
   const items: Array<{
@@ -43,10 +60,10 @@ export async function GET(): Promise<Response> {
     const dayStart = new Date(`${date}T00:00:00.000Z`);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
     const sections = await Promise.all(
-      SOURCE_TYPES.map(async (sourceType) => ({
-        sourceType,
+      (sourceType ? [sourceType] : SOURCE_TYPES).map(async (st) => ({
+        sourceType: st,
         items: await getTopItemsForDate({
-          sourceType,
+          sourceType: st,
           dayStart,
           dayEnd,
           limit: PER_CATEGORY,
@@ -75,10 +92,13 @@ export async function GET(): Promise<Response> {
     });
   }
 
+  const feedTitle = sourceType
+    ? `${siteConfig.name} — The Briefing (${sourceType})`
+    : `${siteConfig.name} — The Briefing`;
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>${escapeXml(siteConfig.name)} — The Briefing</title>
+    <title>${escapeXml(feedTitle)}</title>
     <link>${escapeXml(`${siteConfig.url}/digest`)}</link>
     <description>${escapeXml(`Daily digests of the best AI content per category, ranked by engagement and freshness.`)}</description>
     <language>en</language>
@@ -100,7 +120,7 @@ ${items
   return new Response(xml, {
     headers: {
       "Content-Type": "application/rss+xml; charset=utf-8",
-      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+      "Cache-Control": "public, s-maxage=900, stale-while-revalidate=86400",
     },
   });
 }
