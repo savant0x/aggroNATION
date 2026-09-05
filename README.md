@@ -49,6 +49,7 @@ Migrations live in `supabase/migrations/` and are applied in order via
 | `npm run build`     | Production build                          |
 | `npm run type-check`| `tsc --noEmit`                            |
 | `npm run lint`      | ESLint (`no-explicit-any` enforced)       |
+| `npm test`          | Unit tests (`node:test` via tsx, `tests/`)|
 
 ## Architecture notes
 

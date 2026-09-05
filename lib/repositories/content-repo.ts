@@ -13,6 +13,7 @@
 import "server-only";
 
 import type { GithubRepoData } from "@/lib/fetchers/github-repos";
+import { momentumPatches } from "@/lib/momentum";
 import { getServiceClient } from "@/lib/supabase/admin";
 import { htmlToPlainText } from "@/lib/quality/scrubber";
 import { stripLoneSurrogates } from "@/lib/strings";
@@ -362,7 +363,6 @@ export async function getLatestContentPage(options: {
  */
 const MAX_BASELINE_REFRESHES = 400;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const WEEK_MS = 7 * DAY_MS;
 
 export async function refreshMomentumBaselines(): Promise<number> {
   const client = getServiceClient();
@@ -385,30 +385,20 @@ export async function refreshMomentumBaselines(): Promise<number> {
     if (patched >= MAX_BASELINE_REFRESHES) {
       break;
     }
-    const m = row.metrics ?? {};
-    const rating = Number(m.rating ?? 0);
-    if (!Number.isFinite(rating)) {
-      continue;
-    }
-    const dayAt = m.ratingDayAgoAt ? Date.parse(String(m.ratingDayAgoAt)) : NaN;
-    const weekAt = m.ratingWeekAgoAt
-      ? Date.parse(String(m.ratingWeekAgoAt))
-      : NaN;
-    const patch: Record<string, unknown> = {};
-    if (!Number.isFinite(dayAt) || Date.now() - dayAt > DAY_MS) {
-      patch.ratingDayAgo = rating;
-      patch.ratingDayAgoAt = nowIso;
-    }
-    if (!Number.isFinite(weekAt) || Date.now() - weekAt > WEEK_MS) {
-      patch.ratingWeekAgo = rating;
-      patch.ratingWeekAgoAt = nowIso;
-    }
+    // Decision logic lives in the pure, unit-tested lib/momentum.ts; the
+    // repo only moves bytes (Law 13).
+    const patch = momentumPatches(row.metrics, Date.now());
     if (Object.keys(patch).length === 0) {
       continue;
     }
     const { error: patchError } = await client
       .from(CONTENT_TABLE)
-      .update({ metrics: { ...m, ...patch } })
+      .update({
+        metrics: {
+          ...(row.metrics ?? {}),
+          ...patch,
+        } as typeof row.metrics,
+      })
       .eq("id", row.id);
     if (patchError) {
       throw new Error(

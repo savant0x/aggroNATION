@@ -8,6 +8,13 @@ without one. Dates are UTC.
 
 ### Added
 
+- **Test foundation** (`FID-2026-0905-004`, `major`): first automated suite — 55 tests over the pure logic
+  (rating formula, junk scrubber, surrogate-safe strings, relative-time vocabulary, trendshift URL
+  canonicalization incl. the robots `/api` refusal, OSP impressions parser, and the extracted momentum-baseline
+  decision now living in `lib/momentum.ts`). Runner: `node:test` via tsx (`npm test`), zero runtime deps,
+  `tsx` promoted to an explicit devDependency. Regression detection proven by mutation spot-check
+  (comment-weight mutation → 1 fail → revert → green).
+
 - **Engine badge, ingestion sparkline, digest momentum** (`FID-2026-0905-003`, `minor`): shields.io endpoint badge
   at `/api/status/badge.json` embedded in a README rewritten to the Supabase reality; inline-SVG items-per-cycle
   sparkline on `/status` (trailing 48 cycles); The Briefing's newest day gains a data-gated Momentum section
