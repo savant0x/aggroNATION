@@ -6,7 +6,20 @@ without one. Dates are UTC.
 
 ## 2026-09-05
 
+### Fixed
+
+- **YouTube category silently dead in the engine** (`FID-2026-0905-005`, `major`): the scheduled runner never
+  received `YOUTUBE_API_KEY` (repo secret existed, workflow never mapped it), so every hourly cycle failed all
+  14 YouTube sources and the auto-disable tracker cut them off. Workflow mapping fixed, sources re-enabled —
+  engine run `33999637572`: **19/19 sources OK, 837 items**.
+
 ### Added
+
+- **Failure tracker surfaced & tested** (`FID-2026-0905-005`): the auto-disable decision extracted to pure
+  `lib/source-health.ts` (threshold 5, config-error exemption, clamps) with 7 unit tests incl. an absolute
+  mutation-tripwire on the policy value; `/status` now merges live tracker state with cycle outcomes — a
+  Streak column, disabled badges, and an Auto-disabled callout so a cut-off source can never vanish from the
+  status page again.
 
 - **Test foundation** (`FID-2026-0905-004`, `major`): first automated suite — 55 tests over the pure logic
   (rating formula, junk scrubber, surrogate-safe strings, relative-time vocabulary, trendshift URL

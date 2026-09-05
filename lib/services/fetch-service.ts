@@ -40,9 +40,7 @@ import {
 import { runDailyScrub } from "@/lib/quality/scrub-service";
 import type { ScrubFinding } from "@/lib/quality/scrubber";
 import type { Source } from "@/lib/schemas/content";
-
-/** Consecutive failures after which a source is auto-disabled. */
-const AUTO_DISABLE_THRESHOLD = 5;
+import { nextConsecutiveErrors, shouldAutoDisable } from "@/lib/source-health";
 
 export interface SourceFetchOutcome {
   sourceId: string;
@@ -684,8 +682,13 @@ async function recordSourceFailure(
   source: Source,
   errorMessage: string,
 ): Promise<void> {
-  const consecutive = source.metadata.consecutiveErrors + 1;
-  const disable = consecutive >= AUTO_DISABLE_THRESHOLD;
+  // Decision logic lives in the pure, unit-tested lib/source-health.ts; the
+  // service only moves bytes (Law 13 — mirrors lib/momentum.ts).
+  const consecutive = nextConsecutiveErrors(
+    source.metadata.consecutiveErrors,
+    "fetch",
+  );
+  const disable = shouldAutoDisable(consecutive);
 
   await touchSourceMetadata(source.id, {
     lastFetchedAt: new Date(),

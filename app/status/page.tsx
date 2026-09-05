@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { getStatusSnapshot } from "@/lib/repositories/cycle-repo";
+import { getAllSources } from "@/lib/repositories/source-repo";
 import { relativeTime } from "@/lib/format/relative-time";
 
 export const revalidate = 60;
@@ -20,15 +21,74 @@ export const metadata: Metadata = {
  */
 export default async function StatusPage() {
   let snapshot: Awaited<ReturnType<typeof getStatusSnapshot>> | null = null;
+  let sources: Awaited<ReturnType<typeof getAllSources>> = [];
   let failed = false;
   try {
-    snapshot = await getStatusSnapshot();
+    [snapshot, sources] = await Promise.all([
+      getStatusSnapshot(),
+      getAllSources().catch(() => [] as never[]),
+    ]);
   } catch (error) {
     console.error("[/status] load failed:", error);
     failed = true;
   }
 
   const last = snapshot?.lastCycle ?? null;
+
+  // FID-2026-0905-005: merge LIVE tracker state (sources table: streak,
+  // enabled, lastError) with HISTORICAL outcomes (cycle log). The merge is
+  // why auto-disabled sources can no longer vanish from this page — they
+  // produce no cycle outcomes, so only the live rows can show them.
+  type MergedRow = {
+    key: string;
+    name: string;
+    type: string;
+    streak: number | null;
+    enabled: boolean | null;
+    ok: boolean | null;
+    itemsFetched: number;
+    error: string | null;
+    lastRanAt: Date | null;
+  };
+
+  const liveById = new Map(
+    Array.from(
+      sources.filter((s) => !s.archived).map((s) => [s.id, s] as const),
+    ),
+  );
+  const merged: MergedRow[] = [];
+  for (const s of sources.filter((x) => !x.archived)) {
+    const outcome = snapshot?.sources.find((o) => o.sourceId === s.id);
+    merged.push({
+      key: s.id,
+      name: s.name,
+      type: s.type,
+      streak: s.metadata.consecutiveErrors,
+      enabled: s.enabled,
+      ok: outcome?.ok ?? null,
+      itemsFetched: outcome?.itemsFetched ?? 0,
+      error: outcome?.error ?? s.metadata.lastError ?? null,
+      lastRanAt: outcome?.lastRanAt ?? s.metadata.lastFetchedAt ?? null,
+    });
+  }
+  for (const o of snapshot?.sources ?? []) {
+    const key = o.sourceId || o.sourceName;
+    if (!liveById.has(o.sourceId) && !merged.some((m) => m.key === key)) {
+      merged.push({
+        key,
+        name: o.sourceName,
+        type: o.sourceType,
+        streak: null,
+        enabled: null,
+        ok: o.ok,
+        itemsFetched: o.itemsFetched,
+        error: o.error,
+        lastRanAt: o.lastRanAt,
+      });
+    }
+  }
+  merged.sort((a, b) => (a.type + a.name).localeCompare(b.type + b.name));
+  const autoDisabled = merged.filter((m) => m.enabled === false);
 
   return (
     <div className="mx-auto flex max-w-[900px] flex-col gap-8 pb-20 pt-8">
@@ -83,8 +143,34 @@ export default async function StatusPage() {
                 value={`${(last.durationMs / 1000).toFixed(1)}s`}
               />
             </div>
-          </section>
-
+          </section>{" "}
+          {autoDisabled.length > 0 && (
+            <section
+              aria-label="Auto-disabled sources"
+              className="flex flex-col gap-2 rounded-2xl border border-red-500/40 bg-red-500/5 px-4 py-3"
+            >
+              <h2 className="text-lg font-semibold text-red-400">
+                Auto-disabled ({autoDisabled.length})
+              </h2>
+              <p className="text-sm text-muted">
+                These sources failed {""}
+                {autoDisabled[0].streak ?? 5}+ consecutive fetches and were
+                switched off by the failure tracker. Re-enable them from the
+                admin dashboard once the underlying error is fixed.
+              </p>
+              <ul className="flex flex-wrap gap-2">
+                {autoDisabled.map((m) => (
+                  <li
+                    key={m.key}
+                    className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-medium text-red-400"
+                    title={m.error ?? undefined}
+                  >
+                    {m.name}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <section
             aria-label="Per-source health"
             className="flex flex-col gap-3"
@@ -98,46 +184,66 @@ export default async function StatusPage() {
                     <th className="px-4 py-2 font-medium">Last run</th>
                     <th className="px-4 py-2 font-medium">Result</th>
                     <th className="px-4 py-2 font-medium">Items</th>
+                    <th
+                      className="px-4 py-2 font-medium"
+                      title="Consecutive fetch failures (the auto-disable tracker)"
+                    >
+                      Streak
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {snapshot!.sources.map((s) => (
+                  {merged.map((m) => (
                     <tr
-                      key={s.sourceId || s.sourceName}
+                      key={m.key}
                       className="border-t border-[var(--color-edge)]"
                     >
                       <td className="px-4 py-2">
-                        <span className="font-medium">{s.sourceName}</span>
+                        <span className="font-medium">{m.name}</span>
                         <span className="ml-2 text-xs text-muted">
-                          {s.sourceType}
+                          {m.type}
                         </span>
+                        {m.enabled === false && (
+                          <span className="ml-2 rounded-full border border-red-500/40 px-2 py-0.5 text-[10px] font-medium text-red-400">
+                            disabled
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-2 text-muted">
-                        {s.lastRanAt ? relativeTime(s.lastRanAt) : "—"}
+                        {m.lastRanAt ? relativeTime(m.lastRanAt) : "—"}
                       </td>
                       <td className="px-4 py-2">
-                        {s.ok === null ? (
+                        {m.ok === null ? (
                           <span className="text-muted">unknown</span>
-                        ) : s.ok ? (
+                        ) : m.ok ? (
                           <span className="font-medium text-emerald-400">
                             OK
                           </span>
                         ) : (
                           <span
                             className="font-medium text-red-400"
-                            title={s.error ?? undefined}
+                            title={m.error ?? undefined}
                           >
                             FAIL
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-2">{s.itemsFetched}</td>
+                      <td className="px-4 py-2">{m.itemsFetched}</td>
+                      <td
+                        className={`px-4 py-2 ${
+                          (m.streak ?? 0) > 0
+                            ? "font-medium text-amber-400"
+                            : "text-muted"
+                        }`}
+                      >
+                        {m.streak ?? "—"}
+                      </td>
                     </tr>
                   ))}
-                  {snapshot!.sources.length === 0 && (
+                  {merged.length === 0 && (
                     <tr>
                       <td
-                        colSpan={4}
+                        colSpan={5}
                         className="px-4 py-4 text-center text-muted"
                       >
                         No source outcomes recorded yet.
@@ -148,7 +254,6 @@ export default async function StatusPage() {
               </table>
             </div>
           </section>
-
           <section
             aria-label="Items per cycle, last 48 cycles"
             className="flex flex-col gap-3"
@@ -162,7 +267,6 @@ export default async function StatusPage() {
               cycles).
             </p>
           </section>
-
           <section aria-label="Recent cycles" className="flex flex-col gap-3">
             <h2 className="text-lg font-semibold">Recent cycles</h2>
             <ol className="flex flex-col gap-1.5">
@@ -191,7 +295,6 @@ export default async function StatusPage() {
               ))}
             </ol>
           </section>
-
           <p className="text-xs text-muted">
             Machine-readable snapshot:{" "}
             <Link
