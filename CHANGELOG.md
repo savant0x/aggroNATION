@@ -8,6 +8,15 @@ without one. Dates are UTC.
 
 ### Added
 
+- **Auto-freshness pipeline** (`FID-2026-0905-001`, `major`): the hourly ingestion runner now purges Vercel's ISR
+  cache after every fetch via the new `GET /api/cron/purge` webhook (timing-safe Bearer auth, shared
+  `isCronAuthorized` helper now owning both cron routes) — production reflects each cycle immediately instead of
+  lagging by up to the revalidate window. Purge lists extended with the FID-023 discovery routes that were never
+  wired (`/rising`, `/digest`, `/digest/[date]`, `/tags/[tag]`, `/repo/[slug]`). Verified end-to-end on production:
+  run `33995322848` logged `Purge OK (HTTP 200)` after `5/5 sources OK, 135 items fetched`. The parity probe caught
+  and fixed real `CRON_SECRET` drift between Vercel and the runner. Rising momentum confirmed live: `prev_rating`
+  present on 145 rows after the first cycle on the momentum code.
+
 - **Full-text search, OG cards, Cmd+K, ledger audit** (`FID-2026-0904-022`, `major`):
   full-text body search via `content_text` + stored `search_tsv` tsvector
   (GIN-indexed) — "mullvad" now finds the DNS article by its body;

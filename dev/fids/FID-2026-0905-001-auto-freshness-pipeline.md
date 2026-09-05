@@ -5,7 +5,7 @@
 | **Filename** | `FID-2026-0905-001-auto-freshness-pipeline.md` |
 | **ID**       | FID-2026-0905-001 |
 | **Severity** | major |
-| **Status**   | converged |
+| **Status**   | closed |
 | **Created**  | 2026-09-05 |
 | **Trigger**  | Operator request: the site must update automatically after each hourly ingest — no manual refreshes, no revalidate-window lag |
 
@@ -84,3 +84,27 @@ write paths (admin fetch-now, source CRUD). They self-heal only at their revalid
 ## Implementation pair
 
 Implemented in the same session; SHAs recorded in the closure section after production verification.
+
+## Closure (2026-09-05) — evidence, both audit methods
+
+**Static (gates):** `npm run type-check` exit 0, `npm run lint` exit 0, `npm run build` exit 0 with
+`ƒ /api/cron/purge` in the route table. Call-graph (Law 4): `isCronAuthorized` has exactly 2 production callers
+(`/api/cron/fetch`, `/api/cron/purge`); `purgeContentRoutes` gained the purge-route caller; the five FID-023 routes
+greppable in `revalidate.ts`; the workflow purge step greppable in the YAML.
+
+**Runtime — local (:3100):** `/api/cron/purge` → 401 (no auth) · 401 (wrong secret) · `200 {"purged":true}`
+(correct secret); `/api/cron/fetch` still 200 with its secret after the refactor.
+
+**Runtime — production:**
+- Purge route: 401 unauth / `200 {"purged":true}` with the aligned secret — **this probe caught real secret drift**:
+  the Vercel-stored `CRON_SECRET` did not match the local value until re-set via `vercel env rm/add` + redeploy.
+  Parity is now probe-verified, not assumed.
+- End-to-end: workflow dispatch `33995322848` — `Run full fetch cycle` reported `5/5 sources OK, 135 items fetched`,
+  then the new step logged **`Purge OK (HTTP 200)`** at 22:14:55Z. The full loop — ingest → DB write → CDN purge —
+  is proven on production.
+- Momentum (FID-023 stream H follow-through): run `33994798061` (first cycle on `4584c29`) landed
+  `prev_rating` on **145/1069 rows** with real deltas (e.g. rating 0.39397 / prev 0.39408); coverage grows one cycle
+  at a time. Rising's semantic guard (only positive deltas rank) verified in the `content_rising` SQL function.
+
+**Commits:** `d338e6e` (implementation: webhook route, shared auth, purge-list extension, workflow step).
+FID-2026-0904-023 flipped to `closed` on this evidence (its Rising verification required a real post-deploy cycle).
