@@ -149,6 +149,20 @@ export default async function StatusPage() {
             </div>
           </section>
 
+          <section
+            aria-label="Items per cycle, last 48 cycles"
+            className="flex flex-col gap-3"
+          >
+            <h2 className="text-lg font-semibold">Ingestion trend</h2>
+            <Sparkline
+              points={snapshot!.recent.map((c) => c.itemsFetched).reverse()}
+            />
+            <p className="text-xs text-muted">
+              Items fetched per cycle, oldest → newest (trailing ~48 hourly
+              cycles).
+            </p>
+          </section>
+
           <section aria-label="Recent cycles" className="flex flex-col gap-3">
             <h2 className="text-lg font-semibold">Recent cycles</h2>
             <ol className="flex flex-col gap-1.5">
@@ -192,7 +206,6 @@ export default async function StatusPage() {
     </div>
   );
 }
-
 function Stat({
   label,
   value,
@@ -215,6 +228,52 @@ function Stat({
         }`}
       >
         {value}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Inline-SVG sparkline (FID-2026-0905-003 stream C): items-per-cycle over
+ * the trailing window. Pure — every input comes from the server-rendered
+ * snapshot; no client JS, no dependencies. A flatline at 0 is an honest
+ * rendering of zero ingestion, not an error.
+ */
+function Sparkline({ points }: { points: number[] }) {
+  if (points.length < 2) {
+    return null;
+  }
+  const W = 600;
+  const H = 48;
+  const PAD = 2;
+  const max = Math.max(...points, 1);
+  const coords = points.map((p, i) => {
+    const x = PAD + (i / (points.length - 1)) * (W - 2 * PAD);
+    const y = H - PAD - (p / max) * (H - 2 * PAD);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  return (
+    <div className="rounded-2xl border border-[var(--color-edge)] bg-[var(--color-surface)] px-4 py-3">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="h-12 w-full"
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={`Items per cycle, ${points.length} cycles, peak ${max}`}
+      >
+        <polyline
+          points={coords.join(" ")}
+          fill="none"
+          stroke="var(--color-accent)"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+      </svg>
+      <p className="mt-1 flex justify-between text-[11px] text-muted">
+        <span>oldest</span>
+        <span>peak {max.toLocaleString("en")} items</span>
+        <span>now {points[points.length - 1].toLocaleString("en")}</span>
       </p>
     </div>
   );

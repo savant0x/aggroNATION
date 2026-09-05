@@ -2,7 +2,11 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getTopItemsForDate } from "@/lib/repositories/content-repo";
+import {
+  getRecentContentDays,
+  getTopItemsForDate,
+  getTopMovers,
+} from "@/lib/repositories/content-repo";
 import { SOURCE_TYPES, type SourceType } from "@/lib/schemas/content";
 import { siteConfig } from "@/config/site";
 
@@ -77,6 +81,16 @@ export default async function DigestPage({ params }: DigestPageProps) {
 
   const totalItems = sections.reduce((n, s) => n + s.items.length, 0);
 
+  // FID-2026-0905-003 stream D: momentum on the newest day's briefing only.
+  // Gated by DATA (the newest indexed day), never wall-clock (purity rule);
+  // historical briefings honestly omit it — carried baselines are current
+  // state and cannot be retroactively reconstructed for past dates.
+  const [newestDay, movers] = await Promise.all([
+    getRecentContentDays({ lookbackDays: 1 }).catch(() => [] as string[]),
+    getTopMovers({ days: 1, limit: 8 }).catch(() => [] as never[]),
+  ]);
+  const isLatestDay = newestDay[0] === date;
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8 pb-20 pt-8">
       <header className="flex flex-col gap-2">
@@ -109,6 +123,39 @@ export default async function DigestPage({ params }: DigestPageProps) {
           </a>
         </div>
       </header>
+
+      {isLatestDay && movers.length > 0 && (
+        <section aria-label="Momentum" className="flex flex-col gap-3">
+          <h2 className="font-[family-name:var(--font-display)] text-xl font-bold">
+            Momentum
+          </h2>
+          <ol className="flex flex-col gap-2">
+            {movers.map((item) => {
+              // Same baseline the SQL function ranked by — no drift.
+              const prev = item.metrics.ratingWeekAgo ?? item.metrics.rating;
+              const delta = item.metrics.rating - prev;
+              return (
+                <li key={item.id}>
+                  <Link
+                    href={`/article/${item.id}`}
+                    className="flex items-center gap-3 rounded-xl border border-[var(--color-edge)] bg-[var(--color-surface)] px-4 py-2.5 text-sm transition-colors hover:border-[var(--color-accent)]"
+                  >
+                    <span className="font-medium text-emerald-400">
+                      +{(delta * 100).toFixed(1)}%
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">
+                      {item.title}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted">
+                      {CATEGORY_LABELS[item.sourceType]}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      )}
 
       {totalItems === 0 ? (
         <p role="alert" className="text-sm text-muted">

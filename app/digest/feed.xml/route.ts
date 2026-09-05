@@ -1,6 +1,7 @@
 import {
   getRecentContentDays,
   getTopItemsForDate,
+  getTopMovers,
 } from "@/lib/repositories/content-repo";
 import { SOURCE_TYPES, type ContentItem } from "@/lib/schemas/content";
 import { siteConfig } from "@/config/site";
@@ -56,6 +57,12 @@ export async function GET(request: Request): Promise<Response> {
     pubDate: string;
   }> = [];
 
+  // FID-2026-0905-003 stream D: momentum block on the newest day's briefing
+  // only — data-gated (days[0] IS the newest indexed day), never wall-clock.
+  const movers = await getTopMovers({ days: 1, limit: 8 }).catch(
+    () => [] as never[],
+  );
+
   for (const date of days) {
     const dayStart = new Date(`${date}T00:00:00.000Z`);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
@@ -79,6 +86,17 @@ export async function GET(request: Request): Promise<Response> {
         lines.push(
           `  ${item.title} (${Math.round(item.metrics.rating * 100)})`,
         );
+        count += 1;
+      }
+    }
+    const isLatestDay = date === days[0];
+    if (isLatestDay && movers.length > 0) {
+      lines.push("MOMENTUM (biggest movers this week):");
+      for (const m of movers as ContentItem[]) {
+        // Same baseline the SQL function ranked by — no drift.
+        const prev = m.metrics.ratingWeekAgo ?? m.metrics.rating;
+        const delta = m.metrics.rating - prev;
+        lines.push(`  ${m.title} (+${(delta * 100).toFixed(1)}%)`);
         count += 1;
       }
     }

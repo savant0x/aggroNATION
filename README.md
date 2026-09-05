@@ -1,19 +1,20 @@
 # aggroNATION
 
-AI content aggregator — surfaces the most engaging recent content from curated
-sources (YouTube first; RSS / Reddit / X planned) and ranks it by an
-engagement + freshness score.
+![engine status](https://img.shields.io/endpoint?url=https%3A%2F%2Faggro-nation.vercel.app%2Fapi%2Fstatus%2Fbadge.json)
 
-Fresh rebuild. Legacy builds live in `resources/` for reference only and are
-git-ignored.
+AI content aggregator — surfaces the most engaging recent content from curated
+sources (YouTube, RSS, Reddit, HuggingFace, Trendshift, Open Source Projects)
+and ranks it by an engagement + freshness score. The ingestion engine runs
+hourly; [aggro-nation.vercel.app/status](https://aggro-nation.vercel.app/status)
+is its live heartbeat.
 
 ## Stack
 
 - **Next.js 16** (App Router) + React 19 + TypeScript strict
 - **HeroUI v3** + Tailwind CSS 4
-- **Firebase** — Auth (Email/Password + Google), Firestore
-- **Hosting:** Vercel · **Cron:** external scheduler → protected webhook
-  (`.github/workflows/cron-fetch.yml`)
+- **Supabase** — Postgres (data), service-role access from server code only
+- **Hosting:** Vercel · **Ingestion:** GitHub Actions hourly cron → direct
+  Supabase write → ISR purge webhook (`.github/workflows/cron-fetch.yml`)
 
 ## Getting started
 
@@ -25,24 +26,20 @@ npm run dev
 
 ### Environment variables
 
-Copy `.env.example` and fill in:
+Copy `.env.example` and fill in (names are the contract — see `.env.example`):
 
-- `NEXT_PUBLIC_FIREBASE_*` — Firebase web SDK config (console → Project settings)
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase project
+- `SUPABASE_SERVICE_ROLE_KEY` — server-only data access
+- `SUPABASE_DB_PASSWORD` — direct Postgres access for migration/backfill scripts
 - `YOUTUBE_API_KEY` — YouTube Data API v3 key
-- `CRON_SECRET` — random hex secret for the fetch webhook (`openssl rand -hex 32`)
-- Admin credentials (`FIREBASE_ADMIN_*`) — optional in dev; ADC is used when present
+- `CRON_SECRET` — random hex secret guarding `/api/cron/*` (`openssl rand -hex 32`);
+  the same value must be set on Vercel (production) and as the GitHub repo secret
 
-Firebase Auth requires one-time activation in the console
-(Authentication → Get started) with Email/Password and Google enabled.
+The GitHub Actions runner needs repo secrets `SUPABASE_URL`,
+`SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SITE_URL`, `CRON_SECRET`.
 
-### Admin access
-
-Promote a signed-up user to admin (custom claim consumed by `requireAdmin()`
-and the Firestore rules):
-
-```bash
-npx tsx --env-file=.env.local --tsconfig scripts/tsconfig.json scripts/promote-admin.ts <uid>
-```
+Migrations live in `supabase/migrations/` and are applied in order via
+`scripts/apply-migration.ts`.
 
 ## Scripts
 
@@ -55,14 +52,21 @@ npx tsx --env-file=.env.local --tsconfig scripts/tsconfig.json scripts/promote-a
 
 ## Architecture notes
 
-- `lib/schemas/` — Zod schemas are the single source of truth for all documents
-- `lib/repositories/` — the only code that touches Firestore; queries are
-  contractually matched to `firestore.indexes.json`
-- Content dedupe via deterministic doc IDs (`{sourceType}_{externalId}`) —
-  idempotent writes, no read-before-write
-- Rating = engagement×0.6 + freshness×0.4 with 14-day decay
-- Home page is server-rendered with 5-minute ISR against real Firestore data
-  (honest empty states until the pipeline fills it)
+- `lib/schemas/` — Zod schemas are the single source of truth for all rows;
+  every read parses through them (momentum fields included — parse must not
+  strip what the DB stores)
+- `lib/repositories/` — the only code that touches Supabase; listing/search
+  queries are pinned SQL functions (`supabase/migrations/`), not ad-hoc chains
+- Content dedupe via deterministic row IDs (`{sourceType}_{externalId}`) —
+  idempotent upserts, no read-before-write
+- Rating = engagement×0.6 + freshness×0.4 with 14-day decay, snapshotted at
+  fetch time; momentum (Rising) measures against carried day/week baselines,
+  never per-cycle deltas (decay makes those noise)
+- Every fetch cycle is recorded (`fetch_cycles`) and rendered at `/status`;
+  writes purge the ISR cache via the cron webhook so production never lags
+  the pipeline
+- Home and listing pages are ISR against real data, with honest empty states
+  until the pipeline fills them — nothing is faked, anywhere
 
 ## License
 

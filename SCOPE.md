@@ -411,6 +411,13 @@ sources can never be switched off for lacking credentials. Sweep script staged
 counters, clear stale era errors, preserve actionable config errors, verify pass);
 execution queued behind the same quota reset.
 
+## Scheduled operational checkpoint (FID-2026-0905-003 stream E)
+- [ ] **~2026-09-12 — Rising re-review:** a full week of carried day/week momentum baselines will
+      have accumulated by then. Re-probe the delta distribution (p50/p90/max of rating minus
+      ratingDayAgo / ratingWeekAgo over active rows) and tune the 0.05 relative-momentum floor
+      in `content_rising` if it under- or over-filters. Owner: agent on operator request; the
+      evidence lives in the content table, no extra instrumentation needed.
+
 ## Open out-of-scope items discovered (Law 2 Additional Rule)
 - [OPEN-OUT-OF-SCOPE] Workspace root is not a git repository — ECHO G2 (commit-hashed
   FID closure) unsatisfiable until `git init` (operator decision required)

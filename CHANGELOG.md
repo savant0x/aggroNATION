@@ -8,6 +8,12 @@ without one. Dates are UTC.
 
 ### Added
 
+- **Engine badge, ingestion sparkline, digest momentum** (`FID-2026-0905-003`, `minor`): shields.io endpoint badge
+  at `/api/status/badge.json` embedded in a README rewritten to the Supabase reality; inline-SVG items-per-cycle
+  sparkline on `/status` (trailing 48 cycles); The Briefing's newest day gains a data-gated Momentum section
+  (page + feed) that populates as the week-baseline staircase matures (~2026-09-12, the scheduled Rising
+  re-review checkpoint recorded in SCOPE).
+
 - **Status page, freshness stamps, momentum baselines, cycle alerting** (`FID-2026-0905-002`, `major`): public
   `/status` engine heartbeat + `/api/status` JSON backed by a new append-only `fetch_cycles` log written every
   cycle; "Index updated X ago · refreshes hourly" stamp on all listing pages via the shared listing header;
