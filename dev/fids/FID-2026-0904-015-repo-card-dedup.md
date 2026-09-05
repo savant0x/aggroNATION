@@ -124,4 +124,7 @@ probes repeat the same results.
   render slug heading + ★/⑂ chips + language/topics + inline source badge.
 - **Non-repo probe** (`/rss`): thumbnail `<img>` + overlay badges unchanged.
 - Visual: screenshots confirm both surfaces read cleanly at grid scale.
-- Status: `closed` — production evidence appended post-deploy.
+- Status: `closed` — production evidence below.
+- **Production (post-deploy, commit `a618604`)**: `/github` body og-image
+  `<img>` = 0, compact markers live; article page `og:image` meta present,
+  body og-image `<img>` = 0.
