@@ -3,6 +3,7 @@ import Link from "next/link";
 import { siteConfig } from "@/config/site";
 import { getAllSources } from "@/lib/repositories/source-repo";
 import { countContent } from "@/lib/repositories/content-repo";
+import { relativeTime } from "@/lib/format/relative-time";
 import type { Source, SourceType } from "@/lib/schemas/content";
 
 export const revalidate = 60;
@@ -51,17 +52,6 @@ const PIPELINES: Record<SourceType, { name: string; detail: string }> = {
       "Newly-discovered projects from opensourceprojects.dev, enriched with GitHub repo cards. Surfaced together with trendshift in the GitHub section.",
   },
 };
-
-function relativeTime(date: Date | null): string {
-  if (!date) return "never";
-  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
 
 interface PipelineStatus {
   type: SourceType;

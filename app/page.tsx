@@ -7,6 +7,8 @@ import {
   getLatestContentDiversified,
   getLatestContentMerged,
 } from "@/lib/repositories/content-repo";
+import { getAllSources } from "@/lib/repositories/source-repo";
+import { relativeTime } from "@/lib/format/relative-time";
 import type { ContentItem, SourceType } from "@/lib/schemas/content";
 
 // ISR with a 60s freshness floor (FID-2026-0904-011): operator-triggered
@@ -82,6 +84,46 @@ async function safeCountGithub(): Promise<number | null> {
   }
 }
 
+/**
+ * Hero live-signal (FID-2026-0904-016): total index count, recency of the
+ * last fetch cycle, and the number of pipelines with at least one enabled
+ * source. Any failure renders the honest failure strip — never fake data.
+ */
+async function loadHeroSignal(): Promise<{
+  itemCount: number | null;
+  lastCycleLabel: string;
+  pipelineCount: number;
+  failed: boolean;
+}> {
+  try {
+    const [sources, itemCount] = await Promise.all([
+      getAllSources(),
+      countContent({}),
+    ]);
+    const lastFetchedAt = sources.reduce<Date | null>((acc, s) => {
+      const t = s.metadata.lastFetchedAt;
+      return t && (!acc || t > acc) ? t : acc;
+    }, null);
+    const pipelineCount = new Set(
+      sources.filter((s) => s.enabled).map((s) => s.type),
+    ).size;
+    return {
+      itemCount,
+      lastCycleLabel: relativeTime(lastFetchedAt),
+      pipelineCount,
+      failed: false,
+    };
+  } catch (error) {
+    console.error("[Home] Failed to load hero signal:", error);
+    return {
+      itemCount: null,
+      lastCycleLabel: "never",
+      pipelineCount: 0,
+      failed: true,
+    };
+  }
+}
+
 export default async function Home() {
   const sectionResults = await Promise.all(
     SECTIONS.map(async ({ sourceType, title }) => ({
@@ -92,14 +134,15 @@ export default async function Home() {
     })),
   );
 
-  const [githubItems, githubTotal] = await Promise.all([
+  const [githubItems, githubTotal, heroSignal] = await Promise.all([
     safeGetGithub(),
     safeCountGithub(),
+    loadHeroSignal(),
   ]);
 
   return (
     <div className="flex flex-col gap-16 pb-20">
-      <HeroSection />
+      <HeroSection signal={heroSignal} />
 
       {githubItems.length > 0 && (
         <section
