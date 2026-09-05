@@ -92,5 +92,7 @@ function shape is in `20260906020000_momentum_baselines.sql`.
   `/status` renders the live heartbeat (`5/5`, `9.3s`) after its first ISR window; listings render
   "Index updated 1m ago · refreshes hourly"; `/rising` renders the honest empty state (baselines age into real
   deltas over the next cycles — first day-delta tomorrow).
-- **Production:** deployed with `d338e6e`-lineage code; the hourly workflow exercises record → purge → annotate
-  without operator action. (Post-deploy dispatch recorded in the session summary.)
+- **Production:** live on `49290e6`. `/api/status` returns the real snapshot — including the 22:49:17Z cycle
+  (5/5 sources, 137 items, 37.1s) recorded by the production hourly cron itself on the new deploy; `/status`
+  renders the heartbeat; the freshness stamp renders on listings. The engine now exercises
+  record → baseline-refresh → purge → annotate hourly with zero operator action.
