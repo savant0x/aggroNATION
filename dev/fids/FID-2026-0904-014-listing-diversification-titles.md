@@ -148,4 +148,7 @@ production repeat of flood/title probes. Ground-truth rule applies.
 - **`/new` cache**: both probes return `x-nextjs-prerender: 1` with
   `s-maxage=60` — ISR, not dynamic (FID-012 property preserved).
 - **Purge coverage**: `lib/cache/revalidate.ts` revalidates both route shapes.
-- Status: `closed` — production evidence appended post-deploy.
+- Status: `closed` — production evidence below.
+- **Production (post-deploy, commit `aa962e7`)**: `/youtube` — Julian Goldie
+  SEO **16/20 → 1**, every channel ≤2, 14+ distinct channels visible;
+  `Highlights`/`Strict order` toggle live; `/github` title + toggle live.
