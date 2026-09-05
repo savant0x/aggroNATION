@@ -221,16 +221,7 @@ export default async function TypeListingPage({
               </span>
             )}
             {isHighlights ? (
-              totalPages !== null && totalPages > 1 ? (
-                <Link
-                  href={`${base}/page/2`}
-                  className="rounded-full border border-[var(--color-edge)] bg-[var(--color-surface)] px-5 py-2 text-sm font-medium transition-colors hover:border-[var(--color-accent)]"
-                >
-                  Older →
-                </Link>
-              ) : (
-                <span />
-              )
+              <span />
             ) : totalPages !== null && page < totalPages ? (
               <Link
                 href={`${base}/page/${page + 1}`}
@@ -242,10 +233,11 @@ export default async function TypeListingPage({
               <span />
             )}
           </nav>
-          {isHighlights && totalPages !== null && totalPages > 1 && (
+          {isHighlights && (
             <p className="text-xs text-muted">
-              Showing highlights — one pick per source, freshest first. Older
-              pages are the full strict-chronological archive.
+              Showing highlights — capped per source so no single channel can
+              flood the page. The full strict-chronological archive (every item,
+              newest first) is one click away via “Strict order →”.
             </p>
           )}
         </>
