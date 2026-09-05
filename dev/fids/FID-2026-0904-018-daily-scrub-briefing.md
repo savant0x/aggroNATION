@@ -105,3 +105,8 @@ backfill output), commit SHA, production probes post-deploy.
 - `--all` backfill previously ran (see FID-017 follow-up record, commit `c039399`):
   only 2 rss rows lack bodies, both JS-only pages.
 - Post-deploy production probes recorded in the follow-up evidence commit.
+- **Production (aggro-nation.vercel.app, 2026-09-05, commit `efb920c`):**
+  `/digest` 200; `/digest/2026-09-05` 200 rendering 19 article links with
+  score labels; `/digest/not-a-date` 404; `feed.xml` 200
+  `application/rss+xml; charset=utf-8`; sitemap carries 31 digest URLs
+  (static index + per-day).

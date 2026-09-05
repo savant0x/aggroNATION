@@ -6,6 +6,22 @@ without one. Dates are UTC.
 
 ## 2026-09-05
 
+### Added
+
+- **The Briefing + daily quality scrub** (`FID-2026-0904-018`, `FID-2026-0904-019`, `major`):
+  - `/digest` — index of content-bearing days (derived from real `published_at`
+    data, no fake calendar); `/digest/YYYY-MM-DD` — top 5 per category ranked by
+    the stored rating snapshot; `/digest/feed.xml` — outbound RSS 2.0, one item
+    per day, 14-day window. Implementation: `app/digest/*`,
+    `getTopItemsForDate`/`getRecentContentDays` in `content-repo.ts`, nav +
+    sitemap entries.
+  - Daily junk-pattern scrub runs inside the fetch cycle (first cycle after
+    UTC midnight; failure-isolated, detection-only). Implementation:
+    `lib/quality/scrubber.ts`, `lib/quality/scrub-service.ts`,
+    `FetchAllResult.scrubFindings`.
+  - Full-RSS body backfill (`scripts/backfill-hn-bodies.ts --all`) proven:
+    only 2 rss rows lack bodies (JS-only pages).
+
 ### Archived FIDs (ECHO auto-archive contract)
 
 Closed FIDs moved from `dev/fids/` to `dev/fids/archive/` per the ECHO

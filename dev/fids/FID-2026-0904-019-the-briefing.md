@@ -165,3 +165,7 @@ URLs matrix + feed XML), commit SHA, production probes post-deploy.
 - Honesty check (Law 12): verified — no calendar-filling copy; empty-state
   text is the explicit "Nothing is faked in the meantime" panel.
 - Commit SHA + production probes recorded in the follow-up evidence commit.
+- **Production (aggro-nation.vercel.app, 2026-09-05, commit `efb920c`):**
+  all four URL classes verified live (200/200/404/feed 200 with correct
+  content-type); `/digest/2026-09-05` renders 19 ranked article links with
+  score labels; sitemap carries 31 digest URLs. FID status: **closed**.
