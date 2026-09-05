@@ -359,6 +359,64 @@ export async function getLatestContentAllTypes(options: {
   return (data ?? []).map((r: ContentRow) => mapContentRow(r));
 }
 
+/**
+ * The Briefing (FID-2026-0904-019): per-category top items for one UTC date,
+ * ranked by the fetch-time rating snapshot. Derived on demand — no digest
+ * table, no snapshot writes; the same date always yields the same items
+ * (ratings are stored snapshots, not recomputed per view).
+ */
+export async function getTopItemsForDate(options: {
+  sourceType: SourceType;
+  /** Inclusive UTC day start. */
+  dayStart: Date;
+  /** Exclusive UTC day end. */
+  dayEnd: Date;
+  limit: number;
+}): Promise<ContentItem[]> {
+  const { data, error } = await getServiceClient()
+    .from(CONTENT_TABLE)
+    .select("*")
+    .eq("source_type", options.sourceType)
+    .eq("archived", false)
+    .gte("published_at", options.dayStart.toISOString())
+    .lt("published_at", options.dayEnd.toISOString())
+    .order("metrics->>rating", { ascending: false })
+    .order("published_at", { ascending: false })
+    .limit(options.limit);
+  if (error) {
+    throw new Error(`getTopItemsForDate failed: ${error.message}`);
+  }
+  return (data ?? []).map((r: ContentRow) => mapContentRow(r));
+}
+
+/**
+ * The Briefing index (FID-2026-0904-019): UTC dates that actually have
+ * content, newest first, derived from recent rows (honest — a day with no
+ * content never appears).
+ */
+export async function getRecentContentDays(options: {
+  lookbackDays: number;
+}): Promise<string[]> {
+  const since = new Date(
+    Date.now() - options.lookbackDays * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const { data, error } = await getServiceClient()
+    .from(CONTENT_TABLE)
+    .select("published_at")
+    .eq("archived", false)
+    .gte("published_at", since)
+    .order("published_at", { ascending: false })
+    .limit(5000);
+  if (error) {
+    throw new Error(`getRecentContentDays failed: ${error.message}`);
+  }
+  const days = new Set<string>();
+  for (const row of data ?? []) {
+    days.add((row.published_at as string).slice(0, 10));
+  }
+  return Array.from(days).sort((a, b) => (a < b ? 1 : -1));
+}
+
 export interface UpsertContentInput {
   sourceType: SourceType;
   externalId: string;

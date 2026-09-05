@@ -12,6 +12,10 @@ export const siteConfig = {
       href: "/",
     },
     {
+      label: "Briefing",
+      href: "/digest",
+    },
+    {
       label: "YouTube",
       href: "/youtube",
     },

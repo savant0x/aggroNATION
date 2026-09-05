@@ -4,6 +4,7 @@ import { siteConfig } from "@/config/site";
 import {
   getLatestContentAllTypes,
   countContent,
+  getRecentContentDays,
 } from "@/lib/repositories/content-repo";
 import type { SourceType } from "@/lib/schemas/content";
 
@@ -56,6 +57,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
       priority: 0.3,
     },
+    {
+      url: `${siteConfig.url}/digest`,
+      lastModified: now,
+      priority: 0.8,
+    },
   ];
 
   try {
@@ -86,6 +92,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         })),
     );
 
+    // The Briefing days (FID-2026-0904-019): one path per content-bearing
+    // UTC day in the trailing 30 — the same derived-on-demand honesty as
+    // the index page (a day with no content has no briefing URL).
+    const digestDays = await getRecentContentDays({ lookbackDays: 30 });
+    const digestEntries: MetadataRoute.Sitemap = digestDays.map((day) => ({
+      url: `${siteConfig.url}/digest/${day}`,
+      lastModified: new Date(`${day}T00:00:00.000Z`),
+      priority: 0.7,
+    }));
+
     const items = await getLatestContentAllTypes({ limit: ALL_TYPES_LIMIT });
     const itemEntries: MetadataRoute.Sitemap = items.map((item) => ({
       url:
@@ -96,7 +112,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.6,
     }));
 
-    return [...staticEntries, ...listingPageEntries, ...itemEntries];
+    return [
+      ...staticEntries,
+      ...listingPageEntries,
+      ...digestEntries,
+      ...itemEntries,
+    ];
   } catch (error) {
     // Sitemap must not 500 the whole route on a DB blip — serve the static
     // skeleton and let the next hourly revalidate fill items in.

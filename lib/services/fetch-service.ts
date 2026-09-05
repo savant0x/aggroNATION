@@ -35,6 +35,8 @@ import {
   saveResolutionCache,
   touchSourceMetadata,
 } from "@/lib/repositories/source-repo";
+import { runDailyScrub } from "@/lib/quality/scrub-service";
+import type { ScrubFinding } from "@/lib/quality/scrubber";
 import type { Source } from "@/lib/schemas/content";
 
 /** Consecutive failures after which a source is auto-disabled. */
@@ -65,6 +67,8 @@ export interface FetchAllResult {
   failed: number;
   itemsFetched: number;
   outcomes: SourceFetchOutcome[];
+  /** Content-quality findings from the daily sweep (FID-2026-0904-018). */
+  scrubFindings: ScrubFinding[];
 }
 
 function youtubeApiKey(): string {
@@ -756,6 +760,20 @@ export async function runFetchAllSources(): Promise<FetchAllResult> {
     outcomes.push(await runFetchForSource(source));
   }
 
+  // FID-2026-0904-018: daily content-quality sweep, piggybacked on the
+  // fetch cycle. Runs at most once per UTC day (the hourly cron fires 24x —
+  // the scrub only needs one slot, the first cycle after UTC midnight).
+  let scrubFindings: ScrubFinding[] = [];
+  if (new Date().getUTCHours() === 0) {
+    try {
+      scrubFindings = await runDailyScrub();
+    } catch (error) {
+      // A failed scrub must never fail the fetch cycle — it's surveillance,
+      // not ingestion.
+      console.error("[scrub] daily sweep failed:", error);
+    }
+  }
+
   return {
     ranAt,
     totalSources: sources.length,
@@ -763,5 +781,6 @@ export async function runFetchAllSources(): Promise<FetchAllResult> {
     failed: outcomes.filter((o) => !o.ok).length,
     itemsFetched: outcomes.reduce((sum, o) => sum + o.itemsFetched, 0),
     outcomes,
+    scrubFindings,
   };
 }
