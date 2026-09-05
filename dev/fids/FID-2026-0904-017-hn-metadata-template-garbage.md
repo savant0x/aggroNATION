@@ -100,3 +100,26 @@ production probes post-deploy.
 - Status: `closed` — production evidence below.
 - **Production (post-deploy, commit `282b062`)**: same article URL —
   template = False, Mullvad body = True (1,591 chars).
+
+## Follow-up Package (2026-09-04, operator-approved three-part follow-up)
+
+1. **Corpus junk audit**: every rss/reddit/hf row with contentHtml (103
+   rows) tested against 7 junk patterns (URL dumps, 'submitted by'
+   boilerplate, read-more stubs, markdown link lists, HN template, share
+   stubs, <80-char bodies) — **zero hits**. Length stats sane (trendshift's
+   ~40-char bodies are the by-design GitHub-card items, excluded from the
+   reader concern). Conclusion: the HN template was the only junk pattern
+   in the corpus; the existing length heuristic needs no further hardening —
+   speculative guards rejected to avoid false positives on legit link
+   roundups.
+2. **Heuristic review**: `isMetadataTemplate` (label-shape keyed, generic)
+   + the existing `> title.length + 40` gate cover the observed space. No
+   change made — evidence-driven, not speculative.
+3. **Body backfill**: `scripts/backfill-hn-bodies.ts` (kept as a permanent
+   utility, HN-scoped by default, `--all` flag for full rss coverage) —
+   live-scraped via the same `fetchArticle` allowlist path: **33 stored**
+   (7524/32441/78337-char bodies, incl. the Mullvad article at 1,599),
+   **2 honestly insufficient** (JS-only pages, reader keeps the live
+   fallback), **0 failures**. Absent-key upsert semantics mean crons never
+   erase backfilled bodies. Post-backfill probes: article renders warm body,
+   `/rss` cards carry no template excerpts.
