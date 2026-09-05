@@ -99,6 +99,23 @@ function stripPublisherBoilerplate(text: string): string {
   return text.replace(/^\s*arXiv:\S+\s+Announce Type:\s*\S+\s*/i, "").trim();
 }
 
+/**
+ * Aggregator metadata templates masquerading as content (FID-2026-0904-017).
+ * hnrss.org's "description" is literally:
+ *   "Article URL: … Comments URL: … Points: N # Comments: N"
+ * — zero article text, URLs as dead text (the sanitizer strips anchors).
+ * Storing it as contentHtml poisons the reader (FID-020 renders it instead
+ * of scraping the real article) AND the excerpt (cards + og:description).
+ * Keyed on the label shape, not hnrss-specific strings, so similar
+ * link-list templates from other aggregators are caught too.
+ */
+export function isMetadataTemplate(plain: string): boolean {
+  const hasArticle = /\bArticle URL\s*:/i.test(plain);
+  const hasComments = /\bComments URL\s*:/i.test(plain);
+  const hasPoints = /\b(Points|#\s*Comments)\s*:/i.test(plain);
+  return hasArticle && hasComments && hasPoints;
+}
+
 const FULL_CONTENT_MAX = 500_000;
 
 export interface FeedFetchResult {
@@ -269,7 +286,11 @@ function normalizeEntry(
     bodyTextOf(entry.description) ||
     bodyTextOf(entry.summary);
   const cleanedBody = stripPublisherBoilerplate(stripHtml(htmlBody));
-  const plain = cleanedBody;
+  // FID-2026-0904-017: aggregator metadata templates carry zero article
+  // information beyond the title — never store them as content, never use
+  // them as the excerpt (the title is strictly better).
+  const isTemplate = isMetadataTemplate(cleanedBody);
+  const plain = isTemplate ? "" : cleanedBody;
   const author =
     entry["dc:creator"] ??
     (typeof entry.author === "string" ? entry.author : entry.author?.name) ??
@@ -280,7 +301,7 @@ function normalizeEntry(
   // that adds nothing beyond the title (e.g. link-only feeds).
   const fullPlain = stripPublisherBoilerplate(stripHtml(htmlBody));
   const contentHtml =
-    fullPlain.length > title.length + 40
+    !isTemplate && fullPlain.length > title.length + 40
       ? sanitizeHtml(htmlBody, CONTENT_SANITIZE_OPTIONS).slice(
           0,
           FULL_CONTENT_MAX,

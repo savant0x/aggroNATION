@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { getContentById } from "@/lib/repositories/content-repo";
 import { fetchArticle } from "@/lib/fetchers/article";
+import { isMetadataTemplate } from "@/lib/fetchers/rss";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { GitHubRepoCard } from "@/components/article/GitHubRepoCard";
 import { siteConfig } from "@/config/site";
@@ -127,6 +128,15 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   let bodyHtml: string | null = item.contentHtml ?? null;
   let source = bodyHtml ? "feed" : null;
   let scrapeError: string | null = null;
+
+  // FID-2026-0904-017: legacy rows may hold aggregator metadata templates
+  // ("Article URL: … Comments URL: … Points: N") stored before the fetcher
+  // learned to reject them. Never render that as content — treat it as
+  // absent so the scrape/excerpt path takes over.
+  if (bodyHtml && isMetadataTemplate(bodyHtml)) {
+    bodyHtml = null;
+    source = null;
+  }
 
   if (!bodyHtml) {
     try {
