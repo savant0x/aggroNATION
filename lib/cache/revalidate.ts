@@ -14,16 +14,23 @@
 
 import { revalidatePath } from "next/cache";
 
-/** Static listing routes (page 1 of each type + home). */
+/** Static listing routes (page 1 of each type + home + the strict view). */
 const CONTENT_ROUTES = [
   "/",
   "/rss",
+  "/rss/new",
   "/reddit",
+  "/reddit/new",
   "/huggingface",
+  "/huggingface/new",
   "/trendshift",
+  "/trendshift/new",
   "/opensource",
+  "/opensource/new",
   "/github",
+  "/github/new",
   "/youtube",
+  "/youtube/new",
 ] as const;
 
 /**

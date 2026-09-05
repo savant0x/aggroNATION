@@ -3,6 +3,8 @@ import { ContentGrid } from "@/components/home/ContentGrid";
 import { EmptyState } from "@/components/home/EmptyState";
 import {
   countContent,
+  getLatestContentDiversified,
+  getLatestContentMerged,
   getLatestContentPage,
 } from "@/lib/repositories/content-repo";
 import type { ContentItem, SourceType } from "@/lib/schemas/content";
@@ -13,10 +15,11 @@ import type { ContentItem, SourceType } from "@/lib/schemas/content";
  * render through this component so layout, pagination, and honesty
  * guarantees stay identical across content types.
  *
- * FID-2026-0904-012 item 6: pagination is path-based — the page renders a
- * numeric `page` prop instead of awaiting searchParams. Query strings can
- * never be ISR-cached; path segments can. This is what lets every listing
- * page serve from the ISR cache (the FID's whole point).
+ * FID-2026-0904-014: two listing views, both ISR-safe (path-based, no
+ * searchParams):
+ *   - "highlights" (default, /{type}): diversified round-robin with a
+ *     per-source cap — a high-volume feed cannot flood the grid.
+ *   - "strict" (/{type}/new and /{type}/page/N): raw newest-first archive.
  */
 
 export const metadata = {
@@ -74,15 +77,22 @@ export interface TypeListingPageProps {
   sourceTypes?: SourceType[];
   /** URL segment: "youtube" for /youtube, "github" for the merged page. */
   segment: string;
-  /** 1-based page number from the path (/{segment}/page/N). */
-  page: number;
+  /**
+   * "highlights" (default view): diversified with per-source cap, no deep
+   * pagination — "Older" hands off to the strict archive. "strict": raw
+   * newest-first (the /{type}/new and /{type}/page/N archive views).
+   */
+  sort?: "highlights" | "strict";
+  /** 1-based page number, strict mode only. */
+  page?: number;
 }
 
 export default async function TypeListingPage({
   sourceType,
   sourceTypes,
   segment,
-  page,
+  sort = "highlights",
+  page = 1,
 }: TypeListingPageProps) {
   const types = sourceTypes ?? (sourceType ? [sourceType] : []);
   const isMerged = Boolean(sourceTypes && sourceTypes.length > 1);
@@ -94,12 +104,26 @@ export default async function TypeListingPage({
   let failed = false;
 
   try {
-    const result = await getLatestContentPage({
-      sourceTypes: types,
-      pageSize: PAGE_SIZE,
-      page,
-    });
-    items = result.items;
+    if (sort === "highlights") {
+      items = isMerged
+        ? await getLatestContentMerged({
+            sourceTypes: types,
+            limit: PAGE_SIZE,
+            perSourceCap: 3,
+          })
+        : await getLatestContentDiversified({
+            sourceType: sourceType!,
+            limit: PAGE_SIZE,
+            perSourceCap: 3,
+          });
+    } else {
+      const result = await getLatestContentPage({
+        sourceTypes: types,
+        pageSize: PAGE_SIZE,
+        page,
+      });
+      items = result.items;
+    }
   } catch (error) {
     console.error(`[/${segment}] Failed to load page:`, error);
     failed = true;
@@ -115,6 +139,7 @@ export default async function TypeListingPage({
   const totalPages =
     total !== null && total > 0 ? Math.ceil(total / PAGE_SIZE) : null;
   const base = `/${segment}`;
+  const isHighlights = sort === "highlights";
 
   return (
     <div className="flex flex-col gap-6 pb-20 pt-8">
@@ -134,6 +159,35 @@ export default async function TypeListingPage({
             : `The most recent content from curated sources — ${tagline}.`}{" "}
           Everything opens right here on the site — you never leave.
         </p>
+        {/* FID-2026-0904-014: the two-view toggle. Pure links — both views
+            are cached route shapes, no JS, no searchParams. */}
+        <div className="flex items-center gap-4 text-sm">
+          {isHighlights ? (
+            <>
+              <span className="font-medium text-[var(--color-text-primary)]">
+                Highlights
+              </span>
+              <Link
+                href={`${base}/new`}
+                className="text-muted transition-colors hover:text-[var(--color-accent-bright)]"
+              >
+                Strict order →
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href={base}
+                className="text-muted transition-colors hover:text-[var(--color-accent-bright)]"
+              >
+                ← Highlights
+              </Link>
+              <span className="font-medium text-[var(--color-text-primary)]">
+                Strict order
+              </span>
+            </>
+          )}
+        </div>
       </header>
 
       {items.length > 0 ? (
@@ -149,9 +203,11 @@ export default async function TypeListingPage({
             aria-label="Pagination"
             className="flex items-center justify-between gap-4"
           >
-            {page > 1 ? (
+            {isHighlights ? (
+              <span />
+            ) : page > 1 ? (
               <Link
-                href={page === 2 ? base : `${base}/page/${page - 1}`}
+                href={page === 2 ? `${base}/new` : `${base}/page/${page - 1}`}
                 className="rounded-full border border-[var(--color-edge)] bg-[var(--color-surface)] px-5 py-2 text-sm font-medium transition-colors hover:border-[var(--color-accent)]"
               >
                 ← Newer
@@ -159,12 +215,23 @@ export default async function TypeListingPage({
             ) : (
               <span />
             )}
-            {totalPages !== null && totalPages > 1 && (
+            {!isHighlights && totalPages !== null && totalPages > 1 && (
               <span className="text-sm text-muted">
                 Page {page} of {totalPages.toLocaleString("en")}
               </span>
             )}
-            {totalPages !== null && page < totalPages ? (
+            {isHighlights ? (
+              totalPages !== null && totalPages > 1 ? (
+                <Link
+                  href={`${base}/page/2`}
+                  className="rounded-full border border-[var(--color-edge)] bg-[var(--color-surface)] px-5 py-2 text-sm font-medium transition-colors hover:border-[var(--color-accent)]"
+                >
+                  Older →
+                </Link>
+              ) : (
+                <span />
+              )
+            ) : totalPages !== null && page < totalPages ? (
               <Link
                 href={`${base}/page/${page + 1}`}
                 className="rounded-full border border-[var(--color-edge)] bg-[var(--color-surface)] px-5 py-2 text-sm font-medium transition-colors hover:border-[var(--color-accent)]"
@@ -175,6 +242,12 @@ export default async function TypeListingPage({
               <span />
             )}
           </nav>
+          {isHighlights && totalPages !== null && totalPages > 1 && (
+            <p className="text-xs text-muted">
+              Showing highlights — one pick per source, freshest first. Older
+              pages are the full strict-chronological archive.
+            </p>
+          )}
         </>
       ) : (
         <EmptyState

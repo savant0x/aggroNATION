@@ -12,6 +12,10 @@ export const revalidate = 60;
 
 export default function OpenSourcePage() {
   return (
-    <TypeListingPage segment="opensource" sourceType="opensource" page={1} />
+    <TypeListingPage
+      segment="opensource"
+      sourceType="opensource"
+      sort="highlights"
+    />
   );
 }

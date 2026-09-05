@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import TypeListingPage from "@/app/type-listing-page";
+import TypeListingPage from "../type-listing-page";
 
 export const metadata: Metadata = {
   title: "Trendshift",
@@ -12,6 +12,10 @@ export const revalidate = 60;
 
 export default function TrendshiftPage() {
   return (
-    <TypeListingPage segment="trendshift" sourceType="trendshift" page={1} />
+    <TypeListingPage
+      segment="trendshift"
+      sourceType="trendshift"
+      sort="highlights"
+    />
   );
 }
