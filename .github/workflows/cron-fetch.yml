@@ -16,6 +16,10 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # FID-2026-0905-005: without this mapping the runner never receives the
+      # key — every YouTube source failed as config-error each cycle and the
+      # auto-disable tracker cut them all off (the silent-dead-category bug).
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
       # FID-2026-0905-001: the purge webhook needs the site's origin and the
       # same CRON_SECRET that guards /api/cron/* on Vercel.
       SITE_URL: ${{ secrets.SITE_URL }}
