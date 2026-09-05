@@ -8,6 +8,13 @@ without one. Dates are UTC.
 
 ### Added
 
+- **Slop sweep — wiring debt** (`FID-2026-0904-021`, `major`): real
+  server-side search via the pinned `content_search` SQL function (the
+  Firestore-era newest-100 in-page filter is gone — queries now cover the
+  entire index: title/excerpt/author/source_name/tags); `middleware.ts` →
+  `proxy.ts` per the Next.js 16 convention; the three parallel label maps
+  consolidated into `config/pipelines.ts` (build fails on type-drift);
+  valid-DOM fixes (navbar nested `ul`, auth-slot `div`-in-`ul`).
 - **The Briefing + daily quality scrub** (`FID-2026-0904-018`, `FID-2026-0904-019`, `major`):
   - `/digest` — index of content-bearing days (derived from real `published_at`
     data, no fake calendar); `/digest/YYYY-MM-DD` — top 5 per category ranked by

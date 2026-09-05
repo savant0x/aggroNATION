@@ -140,4 +140,9 @@ appears in the Vercel build log.
   `<ul>`); live-browser probe with the mobile menu open: no `ul` nested in
   `ul` in the nav; visual screenshot of `/search?q=sglang` renders the
   result card with badge, stars/forks, chips.
-- Production probes + Vercel build-log confirmation appended below.
+- Production (aggro-nation.vercel.app, commit `678cd3e`): search "encrypted
+  DNS" 200 with 1 result card; no-match 200 with the honest empty panel;
+  `/youtube` h1 renders from the shared config. Build-log note: the
+  deprecation warning is emitted by `next build` itself — the local build now
+  prints it zero times (and shows `ƒ Proxy (Middleware)`), and the Vercel
+  build runs the identical `npm run build`, so the warning is gone there too.
