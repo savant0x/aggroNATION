@@ -97,4 +97,6 @@ production probes post-deploy.
   chars — the real blog post, rendered via the render-guard → scrape path).
   Screenshot confirms full readable article.
 - Visual: before/after screenshots on record — metadata dump → full article.
-- Status: `closed` — production evidence appended post-deploy.
+- Status: `closed` — production evidence below.
+- **Production (post-deploy, commit `282b062`)**: same article URL —
+  template = False, Mullvad body = True (1,591 chars).
