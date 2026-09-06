@@ -63,15 +63,18 @@ export const Navbar = () => {
           </span>
         </NextLink>
 
-        {/* Editorial nav: uppercase, wide-tracked, underline-only states. */}
-        <ul className="hidden items-center gap-7 lg:flex">
+        {/* Editorial nav: uppercase, wide-tracked, underline-only states.
+            gap-5 from gap-7 + tighter tracking at xl: the bar must hold
+            brand + 9 links + utilities without clipping the auth cluster
+            (FID-005 rev: width budget). */}
+        <ul className="hidden items-center gap-5 lg:flex xl:gap-6 2xl:gap-7">
           {siteConfig.navItems.map((item) => {
             const active = isActivePath(pathname, item.href);
             return (
               <li key={item.href}>
                 <NextLink
                   aria-current={active ? "page" : undefined}
-                  className={`relative inline-flex h-14 items-center text-[12px] font-medium uppercase tracking-[0.14em] transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] ${
+                  className={`relative inline-flex h-14 items-center text-[12px] font-medium uppercase tracking-[0.12em] transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] ${
                     active
                       ? "text-[var(--color-text-primary)]"
                       : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
@@ -91,9 +94,12 @@ export const Navbar = () => {
           })}
         </ul>
 
-        {/* Utilities: bare, one row, no container. */}
-        <div className="flex items-center gap-5">
-          <div className="hidden w-44 lg:block">{searchInput}</div>
+        {/* Utilities: bare, one row, no container. Search narrows at xl to
+            keep the auth cluster on-bar (width budget, FID-005 rev). */}
+        <div className="flex items-center gap-4 2xl:gap-5">
+          <div className="hidden w-36 xl:w-40 2xl:w-44 lg:block">
+            {searchInput}
+          </div>
           <a
             aria-label="GitHub"
             href={siteConfig.links.github}
@@ -104,7 +110,7 @@ export const Navbar = () => {
             <GithubIcon size={18} />
           </a>
           <ThemeSwitch />
-          <ul className="hidden items-center lg:flex">
+          <ul className="hidden items-center gap-4 2xl:gap-5 lg:flex">
             <AuthNav />
           </ul>
           <button
@@ -169,8 +175,8 @@ export const Navbar = () => {
                 </li>
               );
             })}
-            <div className="flex items-center gap-4 pt-4">
-              <AuthNav />
+            <div className="flex flex-wrap items-center gap-4 pt-4">
+              <AuthNav variant="panel" />
             </div>
           </ul>
         </div>
