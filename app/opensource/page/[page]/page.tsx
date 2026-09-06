@@ -4,13 +4,13 @@ import TypeListingPage from "../../../type-listing-page";
 
 export const revalidate = 60;
 
-// Pages ≥ 2 (FID-2026-0904-012 item 6). Non-numeric or < 2 paths 404 —
-// page 1 lives at /opensource itself.
+// FID-2026-0905-007: deep pages of the HIGHLIGHTS view (page 1 lives at
+// /opensource). Page-able diversification walks deeper items per source.
 export function generateStaticParams() {
   return [];
 }
 
-export default async function OpenSourcePageN({
+export default async function OpensourcePageN({
   params,
 }: {
   params: Promise<{ page: string }>;
@@ -21,6 +21,11 @@ export default async function OpenSourcePageN({
     notFound();
   }
   return (
-    <TypeListingPage segment="opensource" sourceType="opensource" page={n} />
+    <TypeListingPage
+      segment="opensource"
+      sourceType="opensource"
+      sort="highlights"
+      page={n}
+    />
   );
 }

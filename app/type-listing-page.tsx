@@ -4,9 +4,8 @@ import { EmptyState } from "@/components/home/EmptyState";
 import { MERGED, PIPELINES } from "@/config/pipelines";
 import {
   countContent,
+  getDiversifiedContentPage,
   getIndexUpdatedAt,
-  getLatestContentDiversified,
-  getLatestContentMerged,
   getLatestContentPage,
 } from "@/lib/repositories/content-repo";
 import { relativeTime } from "@/lib/format/relative-time";
@@ -64,20 +63,25 @@ export default async function TypeListingPage({
 
   let items: ContentItem[] = [];
   let failed = false;
+  // FID-2026-0905-007: exact pool size for the highlights view ("Page N of
+  // M"); strict totals come from countContent below.
+  let highlightsTotal: number | null = null;
 
   try {
     if (sort === "highlights") {
-      items = isMerged
-        ? await getLatestContentMerged({
-            sourceTypes: types,
-            limit: PAGE_SIZE,
-            perSourceCap: 3,
-          })
-        : await getLatestContentDiversified({
-            sourceType: sourceType!,
-            limit: PAGE_SIZE,
-            perSourceCap: 3,
-          });
+      // FID-2026-0905-007: every highlights page — including page 1 — comes
+      // from the SAME page-able pool, so /page/2 is provably disjoint from
+      // /. (The home grid keeps the round-robin selector; listing pages
+      // trade interleave order for coherent pagination.) Auto-cap keeps
+      // floods capped while few-source categories pool full depth.
+      const result = await getDiversifiedContentPage({
+        sourceType,
+        sourceTypes: isMerged ? types : undefined,
+        pageSize: PAGE_SIZE,
+        page,
+      });
+      items = result.items;
+      highlightsTotal = result.total;
     } else {
       const result = await getLatestContentPage({
         sourceTypes: types,
@@ -109,9 +113,32 @@ export default async function TypeListingPage({
   }
 
   const totalPages =
-    total !== null && total > 0 ? Math.ceil(total / PAGE_SIZE) : null;
+    (sort === "highlights"
+      ? highlightsTotal
+      : total !== null
+        ? total
+        : null) !== null
+      ? Math.ceil(
+          (sort === "highlights" ? highlightsTotal! : total!) / PAGE_SIZE,
+        )
+      : null;
   const base = `/${segment}`;
   const isHighlights = sort === "highlights";
+
+  // FID-2026-0905-007 URL contract: highlights lives at / and /page/N;
+  // strict lives at /new and /new/page/N. Both modes paginate.
+  const olderHref = isHighlights
+    ? `${base}/page/${page + 1}`
+    : page === 1
+      ? `${base}/new/page/2`
+      : `${base}/new/page/${page + 1}`;
+  const newerHref = isHighlights
+    ? page === 2
+      ? base
+      : `${base}/page/${page - 1}`
+    : page === 2
+      ? `${base}/new`
+      : `${base}/new/page/${page - 1}`;
 
   return (
     <div className="flex flex-col gap-6 pb-20 pt-8">
@@ -180,11 +207,9 @@ export default async function TypeListingPage({
             aria-label="Pagination"
             className="flex items-center justify-between gap-4"
           >
-            {isHighlights ? (
-              <span />
-            ) : page > 1 ? (
+            {page > 1 ? (
               <Link
-                href={page === 2 ? `${base}/new` : `${base}/page/${page - 1}`}
+                href={newerHref}
                 className="rounded-full border border-[var(--color-edge)] bg-[var(--color-surface)] px-5 py-2 text-sm font-medium transition-colors hover:border-[var(--color-accent)]"
               >
                 ← Newer
@@ -192,16 +217,14 @@ export default async function TypeListingPage({
             ) : (
               <span />
             )}
-            {!isHighlights && totalPages !== null && totalPages > 1 && (
+            {totalPages !== null && totalPages > 1 && (
               <span className="text-sm text-muted">
                 Page {page} of {totalPages.toLocaleString("en")}
               </span>
             )}
-            {isHighlights ? (
-              <span />
-            ) : totalPages !== null && page < totalPages ? (
+            {totalPages !== null && page < totalPages ? (
               <Link
-                href={`${base}/page/${page + 1}`}
+                href={olderHref}
                 className="rounded-full border border-[var(--color-edge)] bg-[var(--color-surface)] px-5 py-2 text-sm font-medium transition-colors hover:border-[var(--color-accent)]"
               >
                 Older →
@@ -212,9 +235,10 @@ export default async function TypeListingPage({
           </nav>
           {isHighlights && (
             <p className="text-xs text-muted">
-              Showing highlights — capped per source so no single channel can
-              flood the page. The full strict-chronological archive (every item,
-              newest first) is one click away via “Strict order →”.
+              Balanced across sources — capped per feed so no single channel can
+              flood the page; deeper pages go deeper into each feed. The raw
+              strict-chronological archive is one click away via “Strict order
+              →”.
             </p>
           )}
         </>

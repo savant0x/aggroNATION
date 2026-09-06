@@ -8,6 +8,13 @@ without one. Dates are UTC.
 
 ### Added
 
+- **Real pagination on every listing** (`FID-2026-0905-007`, `major`): highlights pages now paginate ("Page 1 of 7", Older/Newer)
+  via new page-able diversification SQL with auto per-source caps — floods stay capped, few-source categories reach their
+  full depth (the /github pool went from 6 to 136 reachable items). Strict archive gains coherent `/new/page/N` deep pages;
+  all 14 deep-page routes purge on writes.
+
+### Fixed
+
 - **Cyberpunk repo cards** (`FID-2026-0905-006`, `minor`): every repo item across all grids (/github, /trendshift,
   /opensource, /tags, /rising) now renders the "repo terminal file" card — clipped corner, scanline texture,
   power stripe, mono readouts — built entirely on theme tokens so both themes hold. Replaces the FID-015

@@ -46,12 +46,19 @@ const CONTENT_ROUTES = [
  */
 const CONTENT_PAGE_ROUTES = [
   "/rss/page/[page]",
+  "/rss/new/page/[page]",
   "/reddit/page/[page]",
+  "/reddit/new/page/[page]",
   "/huggingface/page/[page]",
+  "/huggingface/new/page/[page]",
   "/trendshift/page/[page]",
+  "/trendshift/new/page/[page]",
   "/opensource/page/[page]",
+  "/opensource/new/page/[page]",
   "/github/page/[page]",
+  "/github/new/page/[page]",
   "/youtube/page/[page]",
+  "/youtube/new/page/[page]",
   "/article/[itemId]",
   "/watch/[videoId]",
   // FID-2026-0904-023 dynamic-segment discovery routes (same gap).

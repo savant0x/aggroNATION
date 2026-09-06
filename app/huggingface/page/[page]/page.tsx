@@ -4,13 +4,13 @@ import TypeListingPage from "../../../type-listing-page";
 
 export const revalidate = 60;
 
-// Pages ≥ 2 (FID-2026-0904-012 item 6). Non-numeric or < 2 paths 404 —
-// page 1 lives at /huggingface itself.
+// FID-2026-0905-007: deep pages of the HIGHLIGHTS view (page 1 lives at
+// /huggingface). Page-able diversification walks deeper items per source.
 export function generateStaticParams() {
   return [];
 }
 
-export default async function HuggingFacePageN({
+export default async function HuggingfacePageN({
   params,
 }: {
   params: Promise<{ page: string }>;
@@ -21,6 +21,11 @@ export default async function HuggingFacePageN({
     notFound();
   }
   return (
-    <TypeListingPage segment="huggingface" sourceType="huggingface" page={n} />
+    <TypeListingPage
+      segment="huggingface"
+      sourceType="huggingface"
+      sort="highlights"
+      page={n}
+    />
   );
 }

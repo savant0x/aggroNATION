@@ -1,16 +1,16 @@
 import { notFound } from "next/navigation";
 
-import TypeListingPage from "../../../type-listing-page";
+import TypeListingPage from "../../../../type-listing-page";
 
 export const revalidate = 60;
 
-// FID-2026-0905-007: deep pages of the HIGHLIGHTS view (page 1 lives at
-// /trendshift). Page-able diversification walks deeper items per source.
+// FID-2026-0905-007: deep pages of the STRICT view (page 1 lives at
+// /trendshift/new). Raw newest-first archive.
 export function generateStaticParams() {
   return [];
 }
 
-export default async function TrendshiftPageN({
+export default async function TrendshiftNewPageN({
   params,
 }: {
   params: Promise<{ page: string }>;
@@ -24,7 +24,7 @@ export default async function TrendshiftPageN({
     <TypeListingPage
       segment="trendshift"
       sourceType="trendshift"
-      sort="highlights"
+      sort="strict"
       page={n}
     />
   );

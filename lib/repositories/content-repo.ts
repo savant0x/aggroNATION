@@ -181,6 +181,59 @@ export async function getLatestContentDiversified(options: {
 }
 
 /**
+ * Page-able diversification (FID-2026-0905-007): highlights listings with
+ * real pagination. Returns one page of the per-source-capped pool plus its
+ * exact size, so the UI can render "Page N of M" from data, not guesses.
+ *
+ * Auto-cap (perSourceCap omitted): max(3, ceil(240 / active_sources)) —
+ * floods stay capped while few-source categories pool their full depth
+ * (2 flat feeds -> cap 120 -> pool 136 -> 7 pages, probed live).
+ */
+export async function getDiversifiedContentPage(options: {
+  sourceType?: SourceType;
+  sourceTypes?: SourceType[];
+  pageSize: number;
+  page: number;
+  perSourceCap?: number;
+}): Promise<ContentPage & { total: number }> {
+  const { sourceType, sourceTypes, pageSize, page } = options;
+  const types = sourceType ? [sourceType] : (sourceTypes ?? []);
+  if (types.length === 0) {
+    return { items: [], total: 0 };
+  }
+  const capped = Math.max(1, Math.floor(page));
+  const size = Math.max(1, Math.floor(pageSize));
+
+  const client = getServiceClient();
+  const [pageResult, countResult] = await Promise.all([
+    client.rpc("content_capped_pages", {
+      p_types: types,
+      p_cap: options.perSourceCap ?? null,
+      p_limit: size,
+      p_page: capped,
+    }),
+    client.rpc("content_capped_pages_count", {
+      p_types: types,
+      p_cap: options.perSourceCap ?? null,
+    }),
+  ]);
+  if (pageResult.error) {
+    throw new Error(
+      `getDiversifiedContentPage failed: ${pageResult.error.message}`,
+    );
+  }
+  if (countResult.error) {
+    throw new Error(
+      `getDiversifiedContentPage (count) failed: ${countResult.error.message}`,
+    );
+  }
+  return {
+    items: (pageResult.data ?? []).map((r: ContentRow) => mapContentRow(r)),
+    total: Number(countResult.data ?? 0),
+  };
+}
+
+/**
  * Merged "latest" for a combined category (FID-2026-0904-009) — the GitHub
  * section/pages merge `opensource` + `trendshift` types.
  */
@@ -309,6 +362,8 @@ export async function getTopContent({
 
 export interface ContentPage {
   items: ContentItem[];
+  /** Pool/segment size when known (FID-2026-0905-007); strict offsets omit it. */
+  total?: number;
 }
 
 /**
