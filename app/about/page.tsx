@@ -27,6 +27,7 @@ interface PipelineStatus {
   type: SourceType;
   enabled: number;
   erroring: number;
+  /** Live rows in the index for this type (countContent). */
   items: number;
   lastFetchedAt: Date | null;
 }
@@ -41,25 +42,30 @@ async function loadStatus(): Promise<{
     const sources: Source[] = await getAllSources();
     const totalItems = await countContent({});
 
-    const pipelines: PipelineStatus[] = (
-      Object.keys(PIPELINES) as SourceType[]
-    ).map((type) => {
-      const forType = sources.filter((s) => s.type === type && s.enabled);
-      const erroring = forType.filter(
-        (s) => s.metadata.lastError || s.metadata.consecutiveErrors > 0,
-      );
-      const lastFetchedAt = forType.reduce<Date | null>((acc, s) => {
-        const t = s.metadata.lastFetchedAt;
-        return t && (!acc || t > acc) ? t : acc;
-      }, null);
-      return {
-        type,
-        enabled: forType.length,
-        erroring: erroring.length,
-        items: forType.reduce((sum, s) => sum + s.metadata.totalFetched, 0),
-        lastFetchedAt,
-      };
-    });
+    const pipelines: PipelineStatus[] = await Promise.all(
+      (Object.keys(PIPELINES) as SourceType[]).map(async (type) => {
+        const forType = sources.filter((s) => s.type === type && s.enabled);
+        const erroring = forType.filter(
+          (s) => s.metadata.lastError || s.metadata.consecutiveErrors > 0,
+        );
+        const lastFetchedAt = forType.reduce<Date | null>((acc, s) => {
+          const t = s.metadata.lastFetchedAt;
+          return t && (!acc || t > acc) ? t : acc;
+        }, null);
+        // Live index rows — NOT metadata.totalFetched, which counts every
+        // fetch write since registration (re-fetches included) and wildly
+        // overstates what a visitor can actually browse (probed: 1,550
+        // "fetched" vs 54 live for huggingface).
+        const items = await countContent({ sourceTypes: [type] });
+        return {
+          type,
+          enabled: forType.length,
+          erroring: erroring.length,
+          items,
+          lastFetchedAt,
+        };
+      }),
+    );
 
     const lastCycleAt = pipelines.reduce<Date | null>((acc, p) => {
       return p.lastFetchedAt && (!acc || p.lastFetchedAt > acc)
@@ -133,7 +139,7 @@ export default async function AboutPage() {
                     </span>
                     <span className="flex items-center gap-2 text-xs text-muted">
                       {p.enabled > 0
-                        ? `${p.enabled} source${p.enabled === 1 ? "" : "s"} · ${p.items.toLocaleString("en")} fetched`
+                        ? `${p.items.toLocaleString("en")} item${p.items === 1 ? "" : "s"} in the index`
                         : "no sources yet"}
                       <span
                         aria-hidden="true"
