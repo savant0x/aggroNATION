@@ -376,7 +376,6 @@ export async function refreshMomentumBaselines(): Promise<number> {
     throw new Error(`refreshMomentumBaselines (read) failed: ${error.message}`);
   }
 
-  const nowIso = new Date().toISOString();
   let patched = 0;
   for (const row of (data ?? []) as {
     id: string;

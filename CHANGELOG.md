@@ -6,6 +6,13 @@ without one. Dates are UTC.
 
 ## 2026-09-05
 
+### Added
+
+- **Cyberpunk repo cards** (`FID-2026-0905-006`, `minor`): every repo item across all grids (/github, /trendshift,
+  /opensource, /tags, /rising) now renders the "repo terminal file" card — clipped corner, scanline texture,
+  power stripe, mono readouts — built entirely on theme tokens so both themes hold. Replaces the FID-015
+  compact card in `ContentCard`; pure server component, zero client JS.
+
 ### Fixed
 
 - **YouTube category silently dead in the engine** (`FID-2026-0905-005`, `major`): the scheduled runner never

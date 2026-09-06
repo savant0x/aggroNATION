@@ -4,8 +4,9 @@ import { Chip } from "@heroui/react";
 import type { ContentItem } from "@/lib/schemas/content";
 import { TypeFallbackImage } from "@/components/home/TypeFallbackImage";
 import { SourceBadge } from "@/components/home/SourceBadge";
-import { MetricsRow, formatMetricCount } from "@/components/home/MetricsRow";
+import { MetricsRow } from "@/components/home/MetricsRow";
 import { YouTubeEmbed } from "@/components/home/YouTubeEmbed";
+import { RepoCard } from "@/components/home/RepoCard";
 
 interface ContentCardProps {
   item: ContentItem;
@@ -33,86 +34,11 @@ export function ContentCard({ item }: ContentCardProps) {
 
   const readerHref = `/article/${encodeURIComponent(item.id)}`;
 
-  // FID-2026-0904-015: repo items get the compact repo card — text-first,
-  // no banner image, source badge inline (it cannot overlay a thumbnail).
+  // FID-2026-0905-006: repo items render the cyberpunk "repo terminal file"
+  // card — one component serving every grid (/github, /trendshift,
+  // /opensource, /tags, /rising all funnel through here).
   if (item.github) {
-    const repoUrl = `https://github.com/${item.github.slug}`;
-    return (
-      <article className="card-interactive group flex h-full flex-col gap-2 overflow-hidden rounded-2xl border border-[var(--color-edge)] bg-[var(--color-surface)] p-4 transition-colors duration-200 hover:border-[color-mix(in_oklab,var(--color-accent)_55%,transparent)]">
-        <div className="flex items-center justify-between gap-2">
-          {item.sourceName ? (
-            <span
-              className="max-w-[70%] truncate rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-white/90"
-              title={`From ${item.sourceName}`}
-            >
-              {item.sourceName}
-            </span>
-          ) : (
-            <span />
-          )}
-          <span
-            className="shrink-0 text-xs text-muted"
-            title={`${item.github.stars.toLocaleString()} stars · ${item.github.forks.toLocaleString()} forks`}
-          >
-            ★ {formatMetricCount(item.github.stars)} · ⑂{" "}
-            {formatMetricCount(item.github.forks)}
-          </span>
-        </div>
-
-        <h3 className="line-clamp-2 font-[family-name:var(--font-display)] font-semibold leading-snug">
-          <Link
-            href={`/repo/${item.github.slug.replace("/", "--")}`}
-            aria-label={`Open the ${item.github.slug} repository page on aggronation`}
-            className="text-[var(--color-text-primary)] outline-none transition-colors hover:text-[var(--color-accent-bright)] focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
-          >
-            {item.github.slug}
-          </Link>
-        </h3>
-
-        <p className="line-clamp-3 text-sm text-muted">
-          {item.github.description || item.excerpt}
-        </p>
-
-        <div className="mt-auto flex flex-col gap-2 pt-2">
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            {item.github.language && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-edge)] px-2 py-0.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
-                {item.github.language}
-              </span>
-            )}
-            {item.github.topics.slice(0, 2).map((topic) => (
-              <Link
-                key={topic}
-                href={`/tags/${encodeURIComponent(topic)}`}
-                className="rounded-full border border-[var(--color-edge)] px-2 py-0.5 text-muted transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-text-primary)]"
-              >
-                #{topic}
-              </Link>
-            ))}
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <span className="truncate text-xs text-muted">
-              {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(
-                item.publishedAt,
-              )}
-            </span>
-            <Chip
-              size="sm"
-              variant="tertiary"
-              className="shrink-0 border border-[var(--color-edge)] bg-transparent"
-            >
-              {Math.round(item.metrics.rating * 100)}
-            </Chip>
-          </div>
-          <span className="sr-only">
-            <a href={repoUrl} target="_blank" rel="noopener noreferrer">
-              {repoUrl}
-            </a>
-          </span>
-        </div>
-      </article>
-    );
+    return <RepoCard item={item} />;
   }
 
   // Real thumbnail wins; otherwise the operator's branded per-type image

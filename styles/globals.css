@@ -198,3 +198,41 @@ body {
     animation: none;
   }
 }
+
+/*
+ * Repo terminal-file card (FID-2026-0905-006): the cyberpunk grid card for
+ * every repo item. Clipped top-right corner + scanline texture + power
+ * stripe, all through theme tokens so light mode holds. Glow rides on
+ * drop-shadow (box-shadow would be clipped away by the clip-path silhouette)
+ * and appears on hover only — the FID-006 restraint law.
+ */
+.repo-card {
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+}
+
+.repo-card-interactive {
+  transition:
+    transform 200ms ease-out,
+    filter 200ms ease-out,
+    border-color 200ms ease-out;
+}
+
+.repo-card-interactive:hover {
+  transform: translateY(-3px);
+  border-color: var(--color-accent-bright);
+  filter: drop-shadow(0 0 14px var(--accent-bright-glow));
+}
+
+.repo-scanlines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 3px,
+    var(--grid-line) 3px,
+    var(--grid-line) 4px
+  );
+}
+
+.repo-chip-clip {
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
