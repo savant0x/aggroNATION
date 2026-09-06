@@ -23,7 +23,10 @@ interface SourceTableProps {
   onDelete: (source: Source) => void;
   onToggle: (source: Source, enabled: boolean) => void;
   onRestore: (source: Source) => void;
+  onFetchNow: (source: Source) => void;
   busySourceId: string | null;
+  /** FID-2026-0905-008: engine auto-disable threshold for the streak chip. */
+  autoDisableThreshold: number;
 }
 
 function formatDate(value: Date | null): string {
@@ -36,6 +39,58 @@ function formatDate(value: Date | null): string {
 
 function actionButtonClasses(extra: string): string {
   return `rounded-lg px-2 py-1 text-xs font-medium transition-colors ${extra}`;
+}
+
+/**
+ * Health chip (FID-2026-0905-008 stream C): at-a-glance source health from
+ * data the row already carries. Green enabled, grey archived, amber streak
+ * building, red at/over the engine's auto-disable threshold.
+ */
+function HealthChip({
+  enabled,
+  streak,
+  autoDisableThreshold,
+}: {
+  enabled: boolean;
+  streak: number;
+  autoDisableThreshold: number;
+}) {
+  if (!enabled) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-zinc-500" />
+        {streak > 0 ? `off · ×${streak}` : "off"}
+      </span>
+    );
+  }
+  if (streak >= autoDisableThreshold) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 text-xs text-red-400"
+        title={`Disabled at ${autoDisableThreshold} consecutive failures`}
+      >
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-red-500" />×
+        {streak} · cut off
+      </span>
+    );
+  }
+  if (streak > 0) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 text-xs text-amber-400"
+        title={`${streak} consecutive failure(s)`}
+      >
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-amber-400" />×
+        {streak}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400">
+      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+      ok
+    </span>
+  );
 }
 
 type SortKey = "name" | "type";
@@ -85,7 +140,9 @@ export function SourceTable({
   onDelete,
   onToggle,
   onRestore,
+  onFetchNow,
   busySourceId,
+  autoDisableThreshold,
 }: SourceTableProps) {
   const [sort, setSort] = useState<SortState | null>(null);
 
@@ -143,6 +200,7 @@ export function SourceTable({
             />
           </Table.Column>
           <Table.Column>STATUS</Table.Column>
+          <Table.Column>HEALTH</Table.Column>
           <Table.Column>INTERVAL</Table.Column>
           <Table.Column>FETCHED</Table.Column>
           <Table.Column>LAST FETCH</Table.Column>
@@ -198,6 +256,13 @@ export function SourceTable({
                     )}
                   </div>
                 </Table.Cell>
+                <Table.Cell>
+                  <HealthChip
+                    enabled={source.enabled && !source.archived}
+                    streak={source.metadata.consecutiveErrors ?? 0}
+                    autoDisableThreshold={autoDisableThreshold}
+                  />
+                </Table.Cell>
                 <Table.Cell className="text-sm">
                   {source.config.fetchIntervalMinutes}m
                 </Table.Cell>
@@ -209,6 +274,16 @@ export function SourceTable({
                 </Table.Cell>
                 <Table.Cell>
                   <div className="flex flex-wrap items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => onFetchNow(source)}
+                      className={actionButtonClasses(
+                        "border border-[var(--color-edge)] hover:border-[var(--color-accent)]",
+                      )}
+                    >
+                      {busy ? "Fetching…" : "Fetch now"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => onEdit(source)}

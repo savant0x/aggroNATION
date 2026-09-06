@@ -13,7 +13,7 @@
 import "server-only";
 
 import type { GithubRepoData } from "@/lib/fetchers/github-repos";
-import { momentumPatches } from "@/lib/momentum";
+import { carryMomentumBaselines, momentumPatches } from "@/lib/momentum";
 import { getServiceClient } from "@/lib/supabase/admin";
 import { htmlToPlainText } from "@/lib/quality/scrubber";
 import { stripLoneSurrogates } from "@/lib/strings";
@@ -754,6 +754,13 @@ export interface UpsertContentInput {
     /** FID-2026-0904-023 stream H: rating at the previous fetch cycle —
      *  momentum measurement. Absent on first sight (seeded to rating). */
     prevRating?: number;
+    /** FID-2026-0905-008: carried rolling baselines (present when the
+     *  stored row had them — the carry in upsertContentBatch injects
+     *  them). Written through so the staircase survives every upsert. */
+    ratingDayAgo?: number;
+    ratingDayAgoAt?: string;
+    ratingWeekAgo?: number;
+    ratingWeekAgoAt?: string;
   };
   /**
    * Original creation time (data migration only). Upserts omit it — the
@@ -815,6 +822,12 @@ function buildUpsertRow(item: UpsertContentInput): UpsertRow {
       // it to the new rating every write would zero every delta and Rising
       // would never populate. First sight → seed to current (delta 0).
       prev_rating: item.metrics.prevRating ?? item.metrics.rating,
+      // FID-2026-0905-008: carried baselines must reach the jsonb with
+      // snake_case... they don't — the metrics blob keeps its camelCase
+      // keys exactly as contentMetricsSchema declares them (the SQL
+      // functions read 'ratingDayAgo' etc. from the same jsonb). Spread
+      // above already carries them; nothing to remap. (Comment documents
+      // the invariant: baselines live in metrics AS-IS, camelCase.)
     },
     featured: false,
     archived: false,
@@ -854,21 +867,31 @@ export async function upsertContentBatch(
     buildContentDocId(item.sourceType, item.externalId),
   );
   const previousRatings = new Map<string, number>();
+  const storedMetrics = new Map<string, Record<string, unknown>>();
   for (let offset = 0; offset < docIds.length; offset += MAX_BATCH_SIZE) {
     const chunk = docIds.slice(offset, offset + MAX_BATCH_SIZE);
     const { data, error } = await getServiceClient()
       .from(CONTENT_TABLE)
-      .select("id, metrics->>rating")
+      .select("id, metrics")
       .in("id", chunk);
     if (error) {
       throw new Error(
         `upsertContentBatch (prev read) failed: ${error.message}`,
       );
     }
-    for (const row of data ?? []) {
-      const value = (row as { id: string; rating: string | null }).rating;
-      if (value !== null) {
-        previousRatings.set((row as { id: string }).id, Number(value));
+    for (const row of (data ?? []) as {
+      id: string;
+      metrics: Record<string, unknown> | null;
+    }[]) {
+      const value = row.metrics?.rating;
+      if (typeof value === "number") {
+        previousRatings.set(row.id, value);
+      }
+      // FID-2026-0905-008: keep the full stored metrics blob — the baseline
+      // keys must be carried into the incoming write or the upsert wipes
+      // them (the Rising-never-populates bug).
+      if (row.metrics) {
+        storedMetrics.set(row.id, row.metrics);
       }
     }
   }
@@ -877,9 +900,16 @@ export async function upsertContentBatch(
   for (const item of items) {
     const docId = buildContentDocId(item.sourceType, item.externalId);
     const stored = previousRatings.get(docId);
+    const carried = carryMomentumBaselines(
+      storedMetrics.get(docId),
+      item.metrics as Record<string, unknown>,
+    );
     const resolved: UpsertContentInput = stored
-      ? { ...item, metrics: { ...item.metrics, prevRating: stored } }
-      : item;
+      ? {
+          ...item,
+          metrics: { ...carried, prevRating: stored } as typeof item.metrics,
+        }
+      : { ...item, metrics: carried as typeof item.metrics };
     const row = buildUpsertRow(resolved);
     if (item.contentHtml) {
       row.content_html = item.contentHtml;

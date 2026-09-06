@@ -15,6 +15,9 @@ import type { Source } from "@/lib/schemas/content";
 
 /** Operator spec (FID-019): 15 rows per page, system-wide page size. */
 const SOURCES_PAGE_SIZE = 15;
+
+/** Engine auto-disable threshold (FID-2026-0905-005) — shown, not redefined. */
+const AUTO_DISABLE_THRESHOLD = 5;
 import {
   SourceTable,
   type EditingSource,
@@ -47,6 +50,11 @@ export function AdminDashboard({
   const [fetchRun, setFetchRun] = useState<FetchRunSummary | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [sourcePage, setSourcePage] = useState(1);
+  const [rowOutcome, setRowOutcome] = useState<{
+    name: string;
+    ok: boolean;
+    message: string;
+  } | null>(null);
 
   const formState = useOverlayState();
   const deleteState = useOverlayState();
@@ -117,7 +125,7 @@ export function AdminDashboard({
     }
   }
 
-  async function handleFetchNow(): Promise<void> {
+  async function handleFetchAllNow(): Promise<void> {
     setIsFetching(true);
     setFetchRun(null);
     try {
@@ -166,6 +174,43 @@ export function AdminDashboard({
     }
   }
 
+  async function handleFetchNow(source: Source): Promise<void> {
+    setBusySourceId(source.id);
+    setRowOutcome(null);
+    try {
+      const response = await fetch(`/api/admin/sources/${source.id}/fetch`, {
+        method: "POST",
+      });
+      const body = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        itemsFetched?: number;
+        error?: string | null;
+      } | null;
+      if (!response.ok || !body?.ok) {
+        setRowOutcome({
+          name: source.name,
+          ok: false,
+          message: body?.error ?? `Fetch failed (${response.status})`,
+        });
+        return;
+      }
+      setRowOutcome({
+        name: source.name,
+        ok: true,
+        message: `Fetched ${body.itemsFetched ?? 0} item(s).`,
+      });
+      router.refresh();
+    } catch (error) {
+      setRowOutcome({
+        name: source.name,
+        ok: false,
+        message: error instanceof Error ? error.message : "Fetch failed",
+      });
+    } finally {
+      setBusySourceId(null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -185,7 +230,7 @@ export function AdminDashboard({
           </Button>
           <Button
             variant="tertiary"
-            onPress={handleFetchNow}
+            onPress={handleFetchAllNow}
             isDisabled={isFetching}
             className="rounded-xl border border-[var(--color-edge)] bg-[var(--color-surface)]"
           >
@@ -208,6 +253,19 @@ export function AdminDashboard({
         )}
       </div>
 
+      {rowOutcome && (
+        <p
+          role="status"
+          className={
+            rowOutcome.ok
+              ? "text-sm text-[var(--color-accent-bright)]"
+              : "text-sm text-red-400"
+          }
+        >
+          {rowOutcome.name}: {rowOutcome.message}
+        </p>
+      )}
+
       {formError && (
         <p role="alert" className="text-sm text-red-400">
           {formError}
@@ -229,7 +287,9 @@ export function AdminDashboard({
         onDelete={openDelete}
         onToggle={handleToggle}
         onRestore={handleRestore}
+        onFetchNow={handleFetchNow}
         busySourceId={busySourceId}
+        autoDisableThreshold={AUTO_DISABLE_THRESHOLD}
       />
 
       <SourceFormModal

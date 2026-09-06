@@ -50,3 +50,36 @@ export function momentumPatches(
   }
   return patch;
 }
+
+const BASELINE_KEYS = [
+  "ratingDayAgo",
+  "ratingDayAgoAt",
+  "ratingWeekAgo",
+  "ratingWeekAgoAt",
+] as const;
+
+/**
+ * FID-2026-0905-008: carry momentum baselines through an upsert.
+ *
+ * An upsert REPLACES the metrics jsonb; without a carry, every hourly fetch
+ * wiped the day/week baselines and the refresher re-seeded them at the fresh
+ * rating — baseline == current for every row, so the Rising gate
+ * (`rating > ratingDayAgo`) could never pass (probed live: 664/664 equal,
+ * delta distribution exactly 0). This pure function merges the four baseline
+ * keys from the STORED metrics into the incoming write. Absent/garbage keys
+ * stay absent — the refresher owns seeding; this fn only PRESERVES.
+ */
+export function carryMomentumBaselines(
+  stored: Record<string, unknown> | null | undefined,
+  incoming: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!stored) return incoming;
+  const carried: Record<string, unknown> = { ...incoming };
+  for (const key of BASELINE_KEYS) {
+    const value = stored[key];
+    if (value !== null && value !== undefined && !(key in carried)) {
+      carried[key] = value;
+    }
+  }
+  return carried;
+}

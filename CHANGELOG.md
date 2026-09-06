@@ -8,6 +8,17 @@ without one. Dates are UTC.
 
 ### Added
 
+- **Per-source Fetch now + health chips** (`FID-2026-0905-008`, `major`): every admin source row gains a Fetch now button
+  (POST /api/admin/sources/[id]/fetch — retry one source without a full cycle) and a HEALTH column (ok / streak ×N / cut
+  off / off) driven by the failure tracker's live state.
+
+### Fixed
+
+- **Rising was structurally dead** (`FID-2026-0905-008`): hourly upserts replaced the metrics jsonb, wiping the day/week
+  momentum baselines, which the refresher re-seeded at the fresh rating — baseline == current on every row (664/664,
+  delta exactly 0) so the Rising gate could never pass. Upserts now carry the baselines through (pure fn + 7 tests,
+  e2e-verified through the real upsert path and content_rising RPC). Momentum data rebuilds organically within ~24h.
+
 - **Real pagination on every listing** (`FID-2026-0905-007`, `major`): highlights pages now paginate ("Page 1 of 7", Older/Newer)
   via new page-able diversification SQL with auto per-source caps — floods stay capped, few-source categories reach their
   full depth (the /github pool went from 6 to 136 reachable items). Strict archive gains coherent `/new/page/N` deep pages;
